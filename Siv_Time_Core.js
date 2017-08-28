@@ -1,4 +1,4 @@
-/**:
+/*:
   * @plugindesc (v1.0.0) Tracks your frames like Seconds in a Epoch (UNIX) time
   * format. This gives you very flexible in-game time tracking.
   *
@@ -227,7 +227,7 @@ SceneManager.update = function() {
   } else if (SIV_SCOPE.TIME_SCOPE.neverWait) {
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Never Wait');
     shouldStamp = true;
-  } else if (SIV_SCOPE.isSceneAllowed(SceneManager._scene)) {
+  } else if (SIV_SCOPE.TIME_SCOPE.isSceneAllowed(SceneManager._scene)) {
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Scene allowed');
     if ($gameMap.isEventRunning()) {
       if (!SIV_SCOPE.TIME_SCOPE.waitEvents) shouldStamp = true;
@@ -240,7 +240,7 @@ SceneManager.update = function() {
   }
 
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('should stamp: ', shouldStamp);
-  if (shouldStamp) SIV_SCOPE.timestamp_update();
+  if (shouldStamp) SIV_SCOPE.TIME_SCOPE.timestamp_update();
 	SIV_SCOPE._wrapper.scene_manager_update.call(this);
 };
 
