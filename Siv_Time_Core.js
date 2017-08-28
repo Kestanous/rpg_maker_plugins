@@ -132,6 +132,7 @@ SIV_SCOPE.getScenePrototype = function(sceneObject) {
   else if (Scene_Save.prototype.isPrototypeOf(SceneManager._scene)) type = 'save';
   else if (Scene_GameEnd.prototype.isPrototypeOf(SceneManager._scene)) type = 'GameEnd';
   else if (Scene_Title.prototype.isPrototypeOf(SceneManager._scene)) type = 'title';
+  else if (Scene_Load.prototype.isPrototypeOf(SceneManager._scene)) type = 'Load';
   else if (Scene_Boot.prototype.isPrototypeOf(SceneManager._scene)) type = 'boot';
 
   if (SIV_SCOPE.TIME_STATE.debug) console.log('scene type: ', type);
