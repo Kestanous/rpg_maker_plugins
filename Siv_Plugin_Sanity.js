@@ -1,5 +1,5 @@
 /**:
-  * @plugindesc (v1.0.0)
+  * @plugindesc (v0.0.0) WIP! S
   *
   * @author Sivli Embir
   *
@@ -16,8 +16,8 @@
   * Change Log
   * ============================================================================
   *
-  * Version 1.0.0:
-  * - Finished plugin!
+  * Version 0.0.0:
+  * - Pending
 */
 
 /**

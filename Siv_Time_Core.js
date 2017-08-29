@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v1.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time
+  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time
   * format. This gives you very flexible in-game time tracking.
   *
   * @author Sivli Embir
@@ -238,7 +238,6 @@ SIV_SCOPE.onFrame(function() {
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
   if (!SIV_SCOPE.TIME_SCOPE.enabled) {
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
-    SIV_SCOPE._wrapper.scene_manager_update.call(this);
     return;
   }
 
@@ -302,19 +301,44 @@ SIV_SCOPE.TIME_SCOPE.timestamp_update = function(value, shouldSet) {
 
   if (shouldSet && value) {
     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE.timestamp_var, value)
-    SIV_SCOPE.TIME_SCOPE.watch(value)
   } else {
     value = value || 1;
     var oldStamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE.timestamp_var) || 0;
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Old timestamp', oldStamp);
     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE.timestamp_var, oldStamp + value)
-    SIV_SCOPE.TIME_SCOPE.watch(oldStamp + value)
   }
 }
 
-// /**
-//  * A no-op to be used as a wrapper in follow up plugins.
-//  */
-// SIV_SCOPE.TIME_SCOPE.watch = function(timestamp) {
-//   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Current timestamp: ', timestamp);
-// }
+
+/**
+ * Time Utilitys
+ */
+var timeUnits = [
+  'Seconds', 'Minutes', "Hours"
+], timeUnitsPer = [60, 60, 24], framePerIndex = [];
+
+for (var i = 0; i < timeUnitsPer.length; i++) {
+  var base = timeUnitsPer[i], multiplyer = 1;
+  for (var ii = i-1; ii >= 0; ii--) multiplyer = timeUnitsPer[ii] * multiplyer;
+  framePerIndex[i] = base * multiplyer;
+}
+
+/**
+ * I used basily the same setup that webkit (chrome/safari) use in c++ for JS DATE
+ * http://trac.webkit.org/browser/webkit/releases/WebKitGTK/webkit-1.1.1/JavaScriptCore/runtime/DateMath.cpp
+ */
+test = function() {
+  var frames = $gameVariables.value(SIV_SCOPE.TIME_SCOPE.timestamp_var) || 0, time = {};
+  for (var i = 0; i < timeUnits.length - 1; i++) {
+    time[timeUnits[i]] = Math.fmod(Math.floor(frames / framePerIndex[i]), timeUnitsPer[i+1])
+    if (time[timeUnits[i]] < 0) time[timeUnits[i]] = framePerIndex[i+1];
+  }
+  time[timeUnits[timeUnits.length-1]] = Math.floor(frames / framePerIndex[timeUnits.length-1])
+  if (time[timeUnits[timeUnits.length-1]] < 0) time[timeUnits[timeUnits.length-1]] = 0;
+  return time
+}
+
+Math.fmod = function (a,b) {
+  //floor mod. This lets us match the c++ webkit style of handling timestamps
+  return Number((a - (Math.floor(a / b) * b)).toPrecision(8));
+};
