@@ -238,6 +238,7 @@ SIV_SCOPE.onFrame(function() {
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
   if (!SIV_SCOPE.TIME_SCOPE.enabled) {
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
+    SIV_SCOPE._wrapper.scene_manager_update.call(this);
     return;
   }
 
