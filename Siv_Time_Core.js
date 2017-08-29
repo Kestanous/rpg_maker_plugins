@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.0.0) Tracks your frames like Seconds in a Epoch (UNIX) time
+  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v1.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time
   * format. This gives you very flexible in-game time tracking.
   *
   * @author Sivli Embir
@@ -56,6 +56,8 @@
   * Documentation
   * ============================================================================
   *
+  * WARNING: This requires the Siv_Plugin_Sanity plugin be loaded first!
+  *
   * This is a fairly simple utility plugin. With the default settings and the
   * TimeStamp variable assigned, it will count the total number of frames the
   * player has experienced while running around on the map.
@@ -78,6 +80,17 @@
   * second argument is true it replaces the current time with the value.
   * REMOVE_TIME value [Number]
   * - Lets you remove "Frames" as a means of rolling time backwards.
+  *
+  * ============================================================================
+  * Note Tags
+  * ============================================================================
+  *
+  * <SIV_TIME_DISABLE> [Map]
+  * - Will disable the plugin on map setup (when it loads)
+  * <SIV_TIME_ENABLE> [Map]
+  * - Will enable the plugin on map setup (when it loads)
+  *
+  * Use the plugin commands for Events and Battle start.
   *
   * ============================================================================
   * Wait Settings
@@ -173,19 +186,24 @@
   * Change Log
   * ============================================================================
   *
-  * Version 1.00:
+  * Version 1.1.0:
+  * - Added notetags for map enable/diable
+  * - Now requires Siv_Plugin_Sanity!
+  *
+  * Version 1.0.0:
   * - Finished plugin!
 */
 
 /**
  * Some good house keeping given we don't have nice js2016+ import scoping.
- * I will use SIV_SCOPE in case I make more plugins. TIME_SCOPE for this plugin.
+ * I will use SIV_SCOPE in case I make more plugins.
  * _wrapper will just be a global holder for the wraps.
+ * TIME_SCOPE for this plugin.
  */
-if (!SIV_SCOPE) var SIV_SCOPE = { _wrapper: {} };
+
 SIV_SCOPE.TIME_SCOPE = {
   parameters: PluginManager.parameters('Siv_Time_Core'),
-  debug: true
+  debug: false
 };
 SIV_SCOPE.TIME_SCOPE.timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
 SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
@@ -196,25 +214,27 @@ SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed
 
 
 /**
- * Standard Plugin config.
+ * Plugin registration via Siv_Plugin_Sanity.
  */
-SIV_SCOPE._wrapper._game_interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand
-Game_Interpreter.prototype.pluginCommand = function(command, args) {
-	SIV_SCOPE._wrapper._game_interpreter_pluginCommand.call(this,command, args)
-	if (command.toUpperCase() === "ENABLE_TIME") SIV_SCOPE.TIME_SCOPE.enabled = true;
-	if (command.toUpperCase() === "DISABLE_TIME")  SIV_SCOPE.TIME_SCOPE.enabled= false;
-  if (command.toUpperCase() === "ADD_TIME") SIV_SCOPE.TIME_SCOPE.timestamp_update(parseInt(args[0]), args[1]);
-  if (command.toUpperCase() === "REMOVE_TIME") SIV_SCOPE.TIME_SCOPE.timestamp_update(-1 * parseInt(args[0]));
-	return true;
-};
+SIV_SCOPE.registerPlugin("ENABLE_TIME", function() {
+  SIV_SCOPE.TIME_SCOPE.enabled = true;
+})
+SIV_SCOPE.registerPlugin("DISABLE_TIME", function() {
+  SIV_SCOPE.TIME_SCOPE.enabled = false;
+})
+SIV_SCOPE.registerPlugin("ADD_TIME", function(command, args) {
+  SIV_SCOPE.TIME_SCOPE.timestamp_update(parseInt(args[0]), args[1]);
+})
+SIV_SCOPE.registerPlugin("REMOVE_TIME", function() {
+  SIV_SCOPE.TIME_SCOPE.timestamp_update(-1 * parseInt(args[0]));
+})
 
 /**
  * I wrapped the SceneManager itself so I can track every frame in the game. I could have targeted
  * specific Scenes objects like Scene_Map but I would have had to touch the code every time I
  * wanted to add a new scene type. Worth noting that this is where we filter the Event Logic.
  */
-SIV_SCOPE._wrapper.scene_manager_update = SceneManager.update;
-SceneManager.update = function() {
+SIV_SCOPE.onFrame(function() {
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
   if (!SIV_SCOPE.TIME_SCOPE.enabled) {
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
@@ -241,8 +261,22 @@ SceneManager.update = function() {
 
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('should stamp: ', shouldStamp);
   if (shouldStamp) SIV_SCOPE.TIME_SCOPE.timestamp_update();
-	SIV_SCOPE._wrapper.scene_manager_update.call(this);
-};
+});
+
+SIV_SCOPE.onMapSetup(function(mapId) {
+  if (SIV_SCOPE.TIME_SCOPE.enabled) {
+    if (SIV_SCOPE.hasNotetag({ type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" })) {
+      SIV_SCOPE.TIME_SCOPE.enabled = false;
+    }
+  } else {
+    if (SIV_SCOPE.hasNotetag({ type: 'maps', id: mapId, match: "<SIV_TIME_ENABLE>" })) {
+      SIV_SCOPE.TIME_SCOPE.enabled = true;
+    }
+  }
+
+})
+
+
 
 /**
  * Simple if scene type (string) is in the allow array then truthy.
@@ -267,10 +301,19 @@ SIV_SCOPE.TIME_SCOPE.timestamp_update = function(value, shouldSet) {
 
   if (shouldSet && value) {
     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE.timestamp_var, value)
+    SIV_SCOPE.TIME_SCOPE.watch(value)
   } else {
     value = value || 1;
     var oldStamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE.timestamp_var) || 0;
     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Old timestamp', oldStamp);
     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE.timestamp_var, oldStamp + value)
+    SIV_SCOPE.TIME_SCOPE.watch(oldStamp + value)
   }
 }
+
+// /**
+//  * A no-op to be used as a wrapper in follow up plugins.
+//  */
+// SIV_SCOPE.TIME_SCOPE.watch = function(timestamp) {
+//   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Current timestamp: ', timestamp);
+// }
