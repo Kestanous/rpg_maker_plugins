@@ -184,3 +184,15 @@ SIV_SCOPE.registerPlugin = function(command, func) {
  SIV_SCOPE.onFrame = function(func) {
    SIV_SCOPE._onQueue.onFrame.push(func)
  }
+
+
+/**
+ * OVERRIDES & JS EXTENTIONS
+ * I will try to keep this to a minimue. In most cases they will be fixes or
+ * function that should be built in.
+ */
+
+ Math.fmod = function (a,b) {
+   //floor mod. This lets us match the c++ webkit style of handling timestamps
+   return Number((a - (Math.floor(a / b) * b)).toPrecision(8));
+ };
