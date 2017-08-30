@@ -1,5 +1,5 @@
-/**:
-  * @plugindesc (v0.0.0) WIP! S
+/*:
+  * @plugindesc (v0.0.0) WIP!
   *
   * @author Sivli Embir
   *
@@ -20,11 +20,11 @@
   * - Pending
 */
 
-/**
- * Some good house keeping given we don't have nice js2016+ import scoping.
- * I use SIV_SCOPE to keep from bleeding into something else and hopefully not
- * conflicting with other plugins.
- */
+/////////////////////////////////////////////////////////////////////////////////
+// Some good house keeping given we don't have nice js2016+ import scoping.    //
+// I use SIV_SCOPE to keep from bleeding into something else and hopefully not //
+// conflicting with other plugins.                                             //
+/////////////////////////////////////////////////////////////////////////////////
 
 var SIV_SCOPE = {
   _wrapper: {}, //global holder for PRG Maker wraps.
@@ -41,6 +41,12 @@ var SIV_SCOPE = {
     onMapSetup: []
   }
 };
+
+/////////////////////////////////////////////////////////////////////////////////////////
+// Game Init. The engine techically is running before this but until this is finished  //
+// its best to block all plugin functionallity.                                        //
+/////////////////////////////////////////////////////////////////////////////////////////
+
 
 SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded = DataManager.isDatabaseLoaded;
 DataManager.isDatabaseLoaded = function() {
@@ -88,6 +94,8 @@ SIV_SCOPE._buildNotetagDictionary = function(type, data) {
     }
   }
 }
+
+// onMapSetup
 
 SIV_SCOPE._game_map_setup = Game_Map.prototype.setup;
 Game_Map.prototype.setup = function(mapId) {

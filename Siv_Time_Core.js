@@ -1,6 +1,5 @@
-/*:
-  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time
-  * format. This gives you very flexible in-game time tracking.
+  /*:
+  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * @author Sivli Embir
   *
@@ -20,6 +19,12 @@
   * @type boolean
   * @default true
   *
+  * @param Autostart On Map
+  * @parent ---Parameters---
+  * @desc For use with Notetags, will enable the plugin when you change maps unless it has <SIV_TIME_DISABLE>.
+  * @type boolean
+  * @default false
+  *
   * @param Time Units
   * @parent ---Parameters---
   * @desc [Optional] What time units to use in the Util functions
@@ -28,7 +33,7 @@
   *
   * @param Time Unit Devitions
   * @parent ---Parameters---
-  * @desc [Optional] How meny of each sub unit to devide into. (frames * 60 = Seconds) Match the order in Time Units.
+  * @desc [Optional] How meny of each sub unit to devide into. (frames * 60 = 1 Second) Match the order in Time Units.
   * @type string
   * @default 60, 60, 60, 24, 7, 4, 12
   *
@@ -55,10 +60,9 @@
   *
   * @param Allowed Scenes
   * @parent ---Wait-Settings---
-  * @desc What Scenes should be tracked, e.g. "Map, Battle". See help for more
-  * info.
+  * @desc What Scenes should be tracked, e.g. "Map, Battle". See help for more info.
   * @type string
-  * @default 'Map'
+  * @default Map
   *
   * @help
   * ============================================================================
@@ -196,45 +200,56 @@
   * ============================================================================
   *
   * Version 1.1.0:
-  * - Added notetags for map enable/diable
   * - Now requires Siv_Plugin_Sanity!
+  * - Added notetags for map enable/diable
+  * - Added Autostart on map parameters
+  * - Added getTime utility function
+  * - Added Time Units parameters
   *
   * Version 1.0.0:
   * - Finished plugin!
-*/
+  */
 
-/**
- * Params and other config
- */
+/////////////////////////////
+// Params and other config //
+/////////////////////////////
+
 SIV_SCOPE.TIME_SCOPE = {
   parameters: PluginManager.parameters('Siv_Time_Core'),
   debug: false
 };
 SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
 SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
-SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
-SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
-SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
-SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
-SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
+SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
+
+// time unit config
 SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
 SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
   return parseInt(n)
 })
+SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
 
+// do some frame math now to save time later.
 for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
   var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
   for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
 }
 
+// Wait config
+SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
+SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
+SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
+SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
 
-/**
- * Main Code
- */
+
+///////////////
+// Main Code //
+///////////////
 
 /**
  * onFrame via Siv_Plugin_Sanity
+ * We use this to check if we should update the timestamp.
  */
 SIV_SCOPE.onFrame(function() {
   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
@@ -296,10 +311,10 @@ SIV_SCOPE.TIME_SCOPE.timestampUpdate = function(value, shouldSet) {
   }
 }
 
+////////////////////////////////////////////////
+// Plugin registration via Siv_Plugin_Sanity. //
+////////////////////////////////////////////////
 
-/**
- * Plugin registration via Siv_Plugin_Sanity.
- */
 SIV_SCOPE.registerPlugin("ENABLE_TIME", function() {
   SIV_SCOPE.TIME_SCOPE.enabled = true;
 })
@@ -314,26 +329,28 @@ SIV_SCOPE.registerPlugin("REMOVE_TIME", function() {
 })
 
 
-/**
- * Notetags and onMapSetup via Siv_Plugin_Sanity.
- */
+////////////////////////////////////////////////////
+// Notetags and onMapSetup via Siv_Plugin_Sanity. //
+////////////////////////////////////////////////////
 
- SIV_SCOPE.onMapSetup(function(mapId) {
-   if (SIV_SCOPE.TIME_SCOPE.enabled) {
-     if (SIV_SCOPE.hasNotetag({ type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" })) {
-       SIV_SCOPE.TIME_SCOPE.enabled = false;
-     }
-   } else {
-     if (SIV_SCOPE.hasNotetag({ type: 'maps', id: mapId, match: "<SIV_TIME_ENABLE>" })) {
-       SIV_SCOPE.TIME_SCOPE.enabled = true;
-     }
+SIV_SCOPE.onMapSetup(function(mapId) {
+ var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
+ if (SIV_SCOPE.TIME_SCOPE.enabled) {
+   if (SIV_SCOPE.hasNotetag(notetagsRequest)) {
+     SIV_SCOPE.TIME_SCOPE.enabled = false;
    }
+ } else {
+   notetagsRequest.match = "<SIV_TIME_ENABLE>"
+   if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.SIV_SCOPE.hasNotetag(notetagsRequest)) {
+     SIV_SCOPE.TIME_SCOPE.enabled = true;
+   }
+ }
 
- })
+})
 
-/**
- * Time Utilitys
- */
+///////////////////
+// Time Utilitys //
+///////////////////
 
 /**
  * I used basily the same setup that webkit (chrome/safari) use in c++ for JS DATE
