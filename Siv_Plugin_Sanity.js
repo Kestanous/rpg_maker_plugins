@@ -10,26 +10,40 @@
   * Documentation
   * ============================================================================
   *
+  * For RPG Maker MV 1.5+
+  *
   * If you are reading this then you are probobly using another one of my
   * plugins. Be aware that this plugin is safe to use (as far as I know)
-  * but I am still doing a lot of work on it.
+  * but I am still doing a lot of work on it. Until I feel its done it will not
+  * be fully documented and its version will say v0.x.
   *
-  * Evetually this plugin could be used to make building plugins a lot easier,
-  * actually it already does, but I am still doing a lot of work on this.
-  * If you write plugins you can use this now but I very likely will be changing
-  * and renaming things as I go. That really is the key reason its not a v1
-  * release.
+  * The point of this plugin is to make creating plugins easier and reduce
+  * avoidable bugs. Amonge other things it has a dependency manager, which means
+  * if you define your plugins with this tool they will always load in the
+  * order you want regardless of the order in the offical Plugin Manager.
   *
   * ============================================================================
-  * Coder Stuff
+  * API Usage
   * ============================================================================
   *
+  * For details on how to use the API please read the comments in the code
+  * for now.
+  *
+  * SIV_SCOPE.definePlugin
+  *
+  * SIV_SCOPE.onInit
+  *
+  * SIV_SCOPE.onMapSetup
+  *
+  * SIV_SCOPE.hasNotetag
+  *
+  * SIV_SCOPE.registerPluginCommand
   * ============================================================================
   * Change Log
   * ============================================================================
   *
   * Version 0.0.0:
-  * - Pending
+  * - Pending v1
 */
 
 /////////////////////////////////////////////////////////////////////////////////
@@ -118,9 +132,9 @@ SIV_SCOPE.onInit = function(func) {
 
 /**
  * This will run once per map after it has finished loading.
- * @param  {[type]} func A standard function that should contain any code that
+ * @param  {Function} func A standard function that should contain any code that
  * needs to be run once per map.
- * @return {[type]}      [description]
+ * @return {Null}
  */
 SIV_SCOPE.onMapSetup = function(func) {
   SIV_SCOPE._onQueue.onMapSetup.push(func)
@@ -153,10 +167,19 @@ SIV_SCOPE.hasNotetag = function(obj) {
 }
 
 /**
- * [description]
- * @param  {[type]} command [description]
- * @param  {[type]} func    [description]
- * @return {[type]}         [description]
+ * This lets you run plugin commands is a very fast efficent way.
+ *
+ * Warning: Last write wins case, the last plugin to use the same command name
+ * will be the only one to use the command. Breaking change from core!
+ *
+ * TODO: consider building in a namespace backend option, or front end even...
+ * but how??? The user will only say the original name, how do we get intent?
+ * Can we run all matchs? Should we? IMO no but...
+ *
+ * @param  {String} command A globally unique name for your command
+ * @param  {Function} func  A standard function that will preform whatever
+ * you want your plugin command to do.
+ * @return {Null}
  */
 SIV_SCOPE.registerPluginCommand = function(command, func) {
   if (command && func) SIV_SCOPE._pluginCommands[command] = func;
@@ -238,10 +261,10 @@ SIV_SCOPE._databaseHasLoaded = function() {
 
 /**
  * BEHOLD! The Dictionary Function Switch! Lay your worship at the feet of the
- * JS Gods for this gift that have given us!
+ * JS Gods for this gift that they have given us!
  *
  * This will fire off any functions registered by their command names. This skips
- * all the ifs and swith logic. If its registered it will run, if nothing is registered
+ * all the ifs and switch logic. If its registered it will run, if nothing is registered
  * then nothing happens. Instant wonderful perfect switch. ( I am kinda a fan :P )
  *
  * !!!Warning!!! Last write wins apply here. Conflicting commands will only fire
@@ -296,6 +319,8 @@ Game_Map.prototype.setup = function(mapId) {
  };
 
 
+// TODO: REWRITE these code bits so they take less room and focus just on what we need.
+
 /*
  * A partial of Hoek
  * https://github.com/hapijs/Hoek
@@ -331,7 +356,7 @@ HOEK_NOT.shallow = function (source) {
 };
 
 /*
- * A modified version and wrapped of Topo
+ * A modified version of and wrapped Topo
  * https://github.com/hapijs/topo
  * https://raw.githubusercontent.com/hapijs/topo/master/LICENSE
  */

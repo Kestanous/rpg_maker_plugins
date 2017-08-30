@@ -27,15 +27,15 @@
   * @type boolean
   * @default false
   *
-  * @param Time Units
+  * @param Time Unit Names
   * @parent ---Parameters---
-  * @desc [Optional] What time units to use in the Util functions
+  * @desc [Optional] See help. What time units to use in the getTime utility function.
   * @type string
   * @default Seconds, Minutes, Hours, Days, Weeks, Months, Years
   *
-  * @param Time Unit Devitions
+  * @param Time Units
   * @parent ---Parameters---
-  * @desc [Optional] How meny of each sub unit to devide into. (frames * 60 = 1 Second) Match the order in Time Units.
+  * @desc [Optional] See help. With defaults 60 frames = 1 sec, 60 sec = 1 min... 12 months = 1 year. Match name order.
   * @type string
   * @default 60, 60, 60, 24, 7, 4, 12
   *
@@ -43,20 +43,20 @@
   *
   * @param Never Wait
   * @parent ---Wait-Settings---
-  * @desc Always track the time, overrides all other wait settings. Use this if you want to track during all Scenes.
+  * @desc Always tracks the time, overrides all other wait settings. Use this if you want to track during all Scenes.
   * @type boolean
   * @default false
   *
   * @param Wait For Events
   * @parent ---Wait-Settings---
-  * @desc Stop tracking the time for any non parallel events (including Dialog).
+  * @desc Stops tracking the time for any non parallel events (including Dialog).
   * Will cause wait in Battle.
   * @type boolean
   * @default true
   *
   * @param Wait For Dialog
   * @parent ---Wait-Settings---
-  * @desc Stop tracking the time specifically for any "Show Message" events.
+  * @desc Stops tracking the time specifically for any "Show Message" events.
   * @type boolean
   * @default true
   *
@@ -110,7 +110,24 @@
   * Time Unit Settings
   * ============================================================================
   *
-  * TODO:
+  * If this section confuses you, consider scrolling down and reading "TimeStamp
+  * Math Explained". You can also leave these settings alone.
+  *
+  * Time Unit Names
+  * - These are the names of the untis of time you want to use. It can be
+  * anything you want like: "Ticks, Tocks, Clocks", which would take the place
+  * of "Seconds, Minutes, Hours". You can also have as few or many as you want.
+  * For example if you don't want Seconds just start with Minutes. Just be
+  * aware that the last unit will continue to count up like years. If you want
+  * the last unit to have a cap and reset then add a fake unit at the end.
+  *
+  * Time Units
+  * - This is how many sub units you want per unit. For example how many Seconds
+  * are in your version of a Minute? By default it's set to 60sec per 1min. It's
+  * important to remember that the first unit is frames per unit (Seconds). This
+  * is set by default to be 60 frames per 1 Second or 1 real world Second per 1
+  * in-game Second. So if you want faster or slower in-game time, set the first
+  * number to something else. (see "TimeStamp Math Explained" for the math.)
   *
   *
   * ============================================================================
@@ -126,9 +143,10 @@
   * disabling the plugin manually when you want to wait.
   *
   * Wait For Events
-  * - If any non-parrallel event is running it will wait. The most common case
-  * would be manually controlling the characters movement or during dialog but
-  * it also includes things like opening a treasure chest.
+  * - If any non-parrallel event is running it will pause and stop counting time
+  * until the event is over. The most common case would be manually controlling
+  * the characters movement or during dialog but it also includes things like
+  * opening a treasure chest.
   *
   * Wait For Dialog
   * - If you are frame counting during events but you want it to pause during
@@ -144,15 +162,14 @@
   * battles). If you want more fine control see the Coder Stuff section.
   *
   * ============================================================================
-  * Uses Case
+  * TimeStamp Math Explained
   * ============================================================================
-  * TODO: REWRITE!
   * For the best understanding you will want to study up on Epoch (or UNIX)
   * time. That said, it comes down to simple division math. Let's assume you
   * want to use standard time with the in-game time moving at the same speed as
   * real time.
   *
-  * Assume the game frame count is 36,000 frames and we want 60 frames per
+  * Assume the game frame count comes to 36,000 frames and we want 60 frames per
   * second, which is the real time rate.
   *
   * 36,000 frames / 60fps = 600 seconds
@@ -164,8 +181,9 @@
   * So to get the total minutes elapsed:
   * 36,000f / 60fps / 60spm = 10 minutes
   *
-  * Now lets say you want to have the game time move at 2x speed real time. All
-  * you have to do is cut the frames per second in half: 60fps / 2 = 30fps.
+  * Now lets say you want to have the game time move at 2x the speed of real
+  * time. All you have to do is cut the frames per second in half:
+  * 60fps / 2 = 30fps.
   * 36,000f / 30fps / 60spm = 20 minutes
   *
   * You can also have non-standard time, like say 10 minutes per hour.
@@ -173,12 +191,12 @@
   *
   * The math does get a bit more complex when you get fractions. That said Epoch
   * math is well documentation online so this should not be to hard for you to
-  * work out with a bit of study.
+  * work out with a bit of study. Or you could just use the Time Units.
   *
   * ============================================================================
-  * Coder Stuff
+  * Coder Stuff (API)
   * ============================================================================
-  * TODO: REWRITE!
+  *
   * The code itself is documented but the key points to note are:
   *
   * SIV_SCOPE.TIME_SCOPE.debug = boolean
@@ -190,7 +208,11 @@
   *
   * SIV_SCOPE.TIME_SCOPE.timestampUpdate = function (value, set)
   * - this is where the variable gets updated, see the comments for details
-  * (or just read the code TBH).
+  * (or read the code).
+  *
+  * SIV_SCOPE.TIME_SCOPE.getTime = function()
+  * - Assuming you have configured time units (or left the defaults) this will
+  * convert the timestamp into something human readable.
   *
   * ============================================================================
   * Shout Out
@@ -239,8 +261,8 @@
    SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
 
    // time unit config
-   SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
-   SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
+   SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Names'].split(', ')
+   SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].replace(/ /g,'').split(',').map(function (n) {
      return parseInt(n)
    })
    SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
