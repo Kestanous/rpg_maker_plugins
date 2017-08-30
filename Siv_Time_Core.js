@@ -1,5 +1,7 @@
-  /*:
+/*:
   * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+  *
+  * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
   * @author Sivli Embir
   *
@@ -210,164 +212,173 @@
   * - Finished plugin!
   */
 
-/////////////////////////////
-// Params and other config //
-/////////////////////////////
+///////////////////////////////////////////////////////////////////
+// Plugin registation with Siv_Plugin_Sanity dependency manager. //
+///////////////////////////////////////////////////////////////////
+ SIV_SCOPE.definePlugin({
+   name: 'Siv_Time_Core',
+   plugin: function() {
 
-SIV_SCOPE.TIME_SCOPE = {
-  parameters: PluginManager.parameters('Siv_Time_Core'),
-  debug: false
-};
-SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
-SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
-SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
+ /////////////////////////////
+ // Params and other config //
+ /////////////////////////////
 
-// time unit config
-SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
-SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
-  return parseInt(n)
-})
-SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
+ SIV_SCOPE.TIME_SCOPE = {
+   parameters: PluginManager.parameters('Siv_Time_Core'),
+   debug: false
+ };
+ SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
+ SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
 
-// do some frame math now to save time later.
-for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
-  var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
-  for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
-  SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
-}
+ // time unit config
+ SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
+ SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
+   return parseInt(n)
+ })
+ SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
 
-// Wait config
-SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
-SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
-SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
-SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
+ // do some frame math now to save time later.
+ for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
+   var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
+   for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
+   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
+ }
 
-
-///////////////
-// Main Code //
-///////////////
-
-/**
- * onFrame via Siv_Plugin_Sanity
- * We use this to check if we should update the timestamp.
- */
-SIV_SCOPE.onFrame(function() {
-  if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
-  if (!SIV_SCOPE.TIME_SCOPE.enabled) {
-    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
-    return;
-  }
-
-  var shouldStamp = false, sceneAllow;
-  if (!SceneManager._scene) {
-    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('No scene');
-  } else if (SIV_SCOPE.TIME_SCOPE.neverWait) {
-    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Never Wait');
-    shouldStamp = true;
-  } else if (SIV_SCOPE.TIME_SCOPE._isSceneAllowed(SceneManager._scene)) {
-    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Scene allowed');
-    if ($gameMap.isEventRunning()) {
-      if (!SIV_SCOPE.TIME_SCOPE.waitEvents) shouldStamp = true;
-      if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Event allow: ', shouldStamp);
-      if (SIV_SCOPE.TIME_SCOPE.waitDialog && $gameMessage.isBusy()) {
-        if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Allowing Dialog');
-        shouldStamp = false;
-      }
-    } else shouldStamp = true;
-  }
-
-  if (SIV_SCOPE.TIME_SCOPE.debug) console.log('should stamp: ', shouldStamp);
-  if (shouldStamp) SIV_SCOPE.TIME_SCOPE.timestampUpdate();
-});
-
-/**
- * Simple if scene type (string) is in the allow array then truthy.
- *
- * I will admit to some hesitance to using 'constructor.name' as JS prototype is all kinds of
- * wonky. That said we should be using Node in all cases so this should be safe so long as
- * the MV core teem keeps the same Class config. It will also be JS2016+ Class safe so yay...
- */
-SIV_SCOPE.TIME_SCOPE._isSceneAllowed = function(sceneObject) {
-  var type = (sceneObject || {}).constructor.name.split('_')[1].toUpperCase();
-  if (SIV_SCOPE.TIME_SCOPE.debug) console.log('scene type: ', type);
-  return SIV_SCOPE.TIME_SCOPE.allowedSceneList.contains(type)
-}
-
-/**
- * This is where we finaly do work. If we get to this point then we have passed all the
- * allow/dissalow rules. We can also use this to for add/remove time and static sets.
- * For remove time just call with a negative value (e.g. -3000).
- */
-SIV_SCOPE.TIME_SCOPE.timestampUpdate = function(value, shouldSet) {
-  if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SIV_SCOPE.timestampUpdate--');
-
-  if (shouldSet && value) {
-    $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, value)
-  } else {
-    value = value || 1;
-    var oldStamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0;
-    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Old timestamp', oldStamp);
-    $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, oldStamp + value)
-  }
-}
-
-////////////////////////////////////////////////
-// Plugin registration via Siv_Plugin_Sanity. //
-////////////////////////////////////////////////
-
-SIV_SCOPE.registerPlugin("ENABLE_TIME", function() {
-  SIV_SCOPE.TIME_SCOPE.enabled = true;
-})
-SIV_SCOPE.registerPlugin("DISABLE_TIME", function() {
-  SIV_SCOPE.TIME_SCOPE.enabled = false;
-})
-SIV_SCOPE.registerPlugin("ADD_TIME", function(command, args) {
-  SIV_SCOPE.TIME_SCOPE.timestampUpdate(parseInt(args[0]), args[1]);
-})
-SIV_SCOPE.registerPlugin("REMOVE_TIME", function() {
-  SIV_SCOPE.TIME_SCOPE.timestampUpdate(-1 * parseInt(args[0]));
-})
+ // Wait config
+ SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
 
 
-////////////////////////////////////////////////////
-// Notetags and onMapSetup via Siv_Plugin_Sanity. //
-////////////////////////////////////////////////////
+ ///////////////
+ // Main Code //
+ ///////////////
 
-SIV_SCOPE.onMapSetup(function(mapId) {
- var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
- if (SIV_SCOPE.TIME_SCOPE.enabled) {
-   if (SIV_SCOPE.hasNotetag(notetagsRequest)) {
-     SIV_SCOPE.TIME_SCOPE.enabled = false;
+ /**
+  * onFrame via Siv_Plugin_Sanity
+  * We use this to check if we should update the timestamp.
+  */
+ SIV_SCOPE.onFrame(function() {
+   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
+   if (!SIV_SCOPE.TIME_SCOPE.enabled) {
+     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
+     return;
    }
- } else {
-   notetagsRequest.match = "<SIV_TIME_ENABLE>"
-   if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.SIV_SCOPE.hasNotetag(notetagsRequest)) {
-     SIV_SCOPE.TIME_SCOPE.enabled = true;
+
+   var shouldStamp = false, sceneAllow;
+   if (!SceneManager._scene) {
+     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('No scene');
+   } else if (SIV_SCOPE.TIME_SCOPE.neverWait) {
+     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Never Wait');
+     shouldStamp = true;
+   } else if (SIV_SCOPE.TIME_SCOPE._isSceneAllowed(SceneManager._scene)) {
+     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Scene allowed');
+     if ($gameMap.isEventRunning()) {
+       if (!SIV_SCOPE.TIME_SCOPE.waitEvents) shouldStamp = true;
+       if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Event allow: ', shouldStamp);
+       if (SIV_SCOPE.TIME_SCOPE.waitDialog && $gameMessage.isBusy()) {
+         if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Allowing Dialog');
+         shouldStamp = false;
+       }
+     } else shouldStamp = true;
+   }
+
+   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('should stamp: ', shouldStamp);
+   if (shouldStamp) SIV_SCOPE.TIME_SCOPE.timestampUpdate();
+ });
+
+ /**
+  * Simple if scene type (string) is in the allow array then truthy.
+  *
+  * I will admit to some hesitance to using 'constructor.name' as JS prototype is all kinds of
+  * wonky. That said we should be using Node in all cases so this should be safe so long as
+  * the MV core teem keeps the same Class config. It will also be JS2016+ Class safe so yay...
+  */
+ SIV_SCOPE.TIME_SCOPE._isSceneAllowed = function(sceneObject) {
+   var type = (sceneObject || {}).constructor.name.split('_')[1].toUpperCase();
+   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('scene type: ', type);
+   return SIV_SCOPE.TIME_SCOPE.allowedSceneList.contains(type)
+ }
+
+ /**
+  * This is where we finaly do work. If we get to this point then we have passed all the
+  * allow/dissalow rules. We can also use this to for add/remove time and static sets.
+  * For remove time just call with a negative value (e.g. -3000).
+  */
+ SIV_SCOPE.TIME_SCOPE.timestampUpdate = function(value, shouldSet) {
+   if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SIV_SCOPE.timestampUpdate--');
+
+   if (shouldSet && value) {
+     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, value)
+   } else {
+     value = value || 1;
+     var oldStamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0;
+     if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Old timestamp', oldStamp);
+     $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, oldStamp + value)
    }
  }
 
-})
+ ////////////////////////////////////////////////
+ // Plugin registration via Siv_Plugin_Sanity. //
+ ////////////////////////////////////////////////
 
-///////////////////
-// Time Utilitys //
-///////////////////
+ SIV_SCOPE.registerPlugin("ENABLE_TIME", function() {
+   SIV_SCOPE.TIME_SCOPE.enabled = true;
+ })
+ SIV_SCOPE.registerPlugin("DISABLE_TIME", function() {
+   SIV_SCOPE.TIME_SCOPE.enabled = false;
+ })
+ SIV_SCOPE.registerPlugin("ADD_TIME", function(command, args) {
+   SIV_SCOPE.TIME_SCOPE.timestampUpdate(parseInt(args[0]), args[1]);
+ })
+ SIV_SCOPE.registerPlugin("REMOVE_TIME", function() {
+   SIV_SCOPE.TIME_SCOPE.timestampUpdate(-1 * parseInt(args[0]));
+ })
 
-/**
- * I used basily the same setup that webkit (chrome/safari) use in c++ for JS DATE
- * http://trac.webkit.org/browser/webkit/releases/WebKitGTK/webkit-1.1.1/JavaScriptCore/runtime/DateMath.cpp
- */
-SIV_SCOPE.TIME_SCOPE.getTime = function() {
-  var frames = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0
-  , time = {}, timeUnits = SIV_SCOPE.TIME_SCOPE.timeUnits
-  , perSub = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub
-  , perFrame = SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame
-  , lastIndex = timeUnits.length - 1;
 
-  for (var i = 0; i < lastIndex; i++) {
-    time[timeUnits[i]] = Math.fmod(Math.floor(frames / perFrame[i]), perSub[i+1])
-    if (time[timeUnits[i]] < 0) time[timeUnits[i]] = perFrame[i+1];
+ ////////////////////////////////////////////////////
+ // Notetags and onMapSetup via Siv_Plugin_Sanity. //
+ ////////////////////////////////////////////////////
+
+ SIV_SCOPE.onMapSetup(function(mapId) {
+  var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
+  if (SIV_SCOPE.TIME_SCOPE.enabled) {
+    if (SIV_SCOPE.hasNotetag(notetagsRequest)) {
+      SIV_SCOPE.TIME_SCOPE.enabled = false;
+    }
+  } else {
+    notetagsRequest.match = "<SIV_TIME_ENABLE>"
+    if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.SIV_SCOPE.hasNotetag(notetagsRequest)) {
+      SIV_SCOPE.TIME_SCOPE.enabled = true;
+    }
   }
-  time[timeUnits[lastIndex]] = Math.floor(frames / perFrame[lastIndex])
-  if (time[timeUnits[lastIndex]] < 0) time[timeUnits[lastIndex]] = 0;
-  return time
-}
+
+ })
+
+ ///////////////////
+ // Time Utilitys //
+ ///////////////////
+
+ /**
+  * I used basily the same setup that webkit (chrome/safari) use in c++ for JS DATE
+  * http://trac.webkit.org/browser/webkit/releases/WebKitGTK/webkit-1.1.1/JavaScriptCore/runtime/DateMath.cpp
+  */
+ SIV_SCOPE.TIME_SCOPE.getTime = function() {
+   var frames = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0
+   , time = {}, timeUnits = SIV_SCOPE.TIME_SCOPE.timeUnits
+   , perSub = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub
+   , perFrame = SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame
+   , lastIndex = timeUnits.length - 1;
+
+   for (var i = 0; i < lastIndex; i++) {
+     time[timeUnits[i]] = Math.fmod(Math.floor(frames / perFrame[i]), perSub[i+1])
+     if (time[timeUnits[i]] < 0) time[timeUnits[i]] = perFrame[i+1];
+   }
+   time[timeUnits[lastIndex]] = Math.floor(frames / perFrame[lastIndex])
+   if (time[timeUnits[lastIndex]] < 0) time[timeUnits[lastIndex]] = 0;
+   return time
+ }
+   }
+ })
