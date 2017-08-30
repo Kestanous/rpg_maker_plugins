@@ -1,5 +1,5 @@
-/*:
-  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.0.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+/**:
+  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
@@ -78,9 +78,7 @@
   * player has experienced while running around on the map.
   *
   * Unless you are skilled with JS you will likely want to use this with
-  * another plugin. By default it makes no assumptions on how you want to break
-  * up the frames (seconds, minutes, ext...) and offers no way to display it
-  * outside the variable.
+  * another plugin as it offers no way to display the time.
   *
   * ============================================================================
   * Plugin Commands
@@ -103,9 +101,17 @@
   * <SIV_TIME_DISABLE> [Map]
   * - Will disable the plugin on map setup (when it loads)
   * <SIV_TIME_ENABLE> [Map]
-  * - Will enable the plugin on map setup (when it loads)
+  * - Will enable the plugin on map setup (when it loads). This is redundant
+  * with Autostart on Map on.
   *
   * Use the plugin commands for Events and Battle start.
+  *
+  * ============================================================================
+  * Time Unit Settings
+  * ============================================================================
+  *
+  * TODO:
+  *
   *
   * ============================================================================
   * Wait Settings
@@ -140,7 +146,7 @@
   * ============================================================================
   * Uses Case
   * ============================================================================
-  *
+  * TODO: REWRITE!
   * For the best understanding you will want to study up on Epoch (or UNIX)
   * time. That said, it comes down to simple division math. Let's assume you
   * want to use standard time with the in-game time moving at the same speed as
@@ -172,7 +178,7 @@
   * ============================================================================
   * Coder Stuff
   * ============================================================================
-  *
+  * TODO: REWRITE!
   * The code itself is documented but the key points to note are:
   *
   * SIV_SCOPE.TIME_SCOPE.debug = boolean
@@ -223,34 +229,35 @@
  // Params and other config //
  /////////////////////////////
 
- SIV_SCOPE.TIME_SCOPE = {
-   parameters: PluginManager.parameters('Siv_Time_Core'),
-   debug: false
- };
- SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
- SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
- SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
+ SIV_SCOPE.TIME_SCOPE = {}
 
- // time unit config
- SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
- SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
-   return parseInt(n)
+ SIV_SCOPE.onInit(function() {
+   SIV_SCOPE.TIME_SCOPE.parameters = PluginManager.parameters('Siv_Time_Core');
+   SIV_SCOPE.TIME_SCOPE.debug = false;
+   SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
+   SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
+   SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
+
+   // time unit config
+   SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].split(', ')
+   SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Devitions'].replace(/ /g,'').split(',').map(function (n) {
+     return parseInt(n)
+   })
+   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
+
+   // do some frame math now to save time later.
+   for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
+     var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
+     for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
+     SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
+   }
+
+   // Wait config
+   SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
+   SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
+   SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
+   SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
  })
- SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
-
- // do some frame math now to save time later.
- for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
-   var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
-   for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
-   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
- }
-
- // Wait config
- SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
- SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
- SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
- SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
-
 
  ///////////////
  // Main Code //
@@ -321,19 +328,19 @@
  }
 
  ////////////////////////////////////////////////
- // Plugin registration via Siv_Plugin_Sanity. //
+ // Plugin command registration via Siv_Plugin_Sanity. //
  ////////////////////////////////////////////////
 
- SIV_SCOPE.registerPlugin("ENABLE_TIME", function() {
+ SIV_SCOPE.registerPluginCommand("ENABLE_TIME", function() {
    SIV_SCOPE.TIME_SCOPE.enabled = true;
  })
- SIV_SCOPE.registerPlugin("DISABLE_TIME", function() {
+ SIV_SCOPE.registerPluginCommand("DISABLE_TIME", function() {
    SIV_SCOPE.TIME_SCOPE.enabled = false;
  })
- SIV_SCOPE.registerPlugin("ADD_TIME", function(command, args) {
+ SIV_SCOPE.registerPluginCommand("ADD_TIME", function(command, args) {
    SIV_SCOPE.TIME_SCOPE.timestampUpdate(parseInt(args[0]), args[1]);
  })
- SIV_SCOPE.registerPlugin("REMOVE_TIME", function() {
+ SIV_SCOPE.registerPluginCommand("REMOVE_TIME", function() {
    SIV_SCOPE.TIME_SCOPE.timestampUpdate(-1 * parseInt(args[0]));
  })
 

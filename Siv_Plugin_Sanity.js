@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v0.0.0) WIP!
+  * @plugindesc (v0.1.0) Makes building and using plugins easier. Comes with a dependency manager.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
@@ -9,6 +9,16 @@
   * ============================================================================
   * Documentation
   * ============================================================================
+  *
+  * If you are reading this then you are probobly using another one of my
+  * plugins. Be aware that this plugin is safe to use (as far as I know)
+  * but I am still doing a lot of work on it.
+  *
+  * Evetually this plugin could be used to make building plugins a lot easier,
+  * actually it already does, but I am still doing a lot of work on this.
+  * If you write plugins you can use this now but I very likely will be changing
+  * and renaming things as I go. That really is the key reason its not a v1
+  * release.
   *
   * ============================================================================
   * Coder Stuff
@@ -37,7 +47,7 @@ var SIV_SCOPE = {
       maps: {} //maps require special treatment.
     }
   },
-  _pluginComands: {}, //This is where I store plugin functions.
+  _pluginCommands: {}, //This is where I store plugin functions.
   _onQueue: { //all the on[state] queue functions.
     onInit: [],
     onFrame: [],
@@ -45,42 +55,19 @@ var SIV_SCOPE = {
   }
 };
 
-/////////////////////////////////////////////////////////////////////////////////////////
-// Game Init. The engine techically is running before this but until this is finished  //
-// its best to block all plugin functionallity.                                        //
-/////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////
+// PUBLIC API. This is for use by anyone using the plugin. Everything after this //
+// is not meant to be used outside of the plugin, so hack at your own risk :)    //
+///////////////////////////////////////////////////////////////////////////////////
 
-
-SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded = DataManager.isDatabaseLoaded;
-DataManager.isDatabaseLoaded = function() {
-  if (!SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded.apply(this, arguments)) return false;
-  if (SIV_SCOPE._data.databaseHasLoaded) return;
-
-  SIV_SCOPE._buildNotetagDictionary('actors', $dataActors)
-  // SIV_SCOPE._buildNotetagDictionary('animations', $dataAnimations)
-  SIV_SCOPE._buildNotetagDictionary('armors', $dataArmors)
-  SIV_SCOPE._buildNotetagDictionary('classes', $dataClasses)
-  SIV_SCOPE._buildNotetagDictionary('commonEvents', $dataCommonEvents)
-  SIV_SCOPE._buildNotetagDictionary('enemies', $dataEnemies)
-  // SIV_SCOPE._buildNotetagDictionary('map', $dataMap)
-  // SIV_SCOPE._buildNotetagDictionary('mapInfos', $dataMapInfos)
-  SIV_SCOPE._buildNotetagDictionary('skills', $dataSkills)
-  SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
-  // SIV_SCOPE._buildNotetagDictionary('system', $dataSystem)
-  // SIV_SCOPE._buildNotetagDictionary('tilesets', $dataTilesets)
-  // SIV_SCOPE._buildNotetagDictionary('troops', $dataTroops)
-  SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
-
-  var pluginList = SIV_SCOPE._dependencyGraph.nodes;
-  for (var i = 0; i < pluginList.length; i++) {
-    SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
-  }
-
-  SIV_SCOPE._databaseHasLoaded()
-
-  return true;
-};
-
+/**
+ * If you use this to define your plugin Siv_Plugin_Sanity will make sure it loads and
+ * runs at the right time. That is after the database exists and after any required
+ * plugins. It will also load beore the onInit function, when you should do global config work.
+ * @param  {Object} definition must contain a name {string} and a plugin {function}.
+ * It may include a require {Array} with a list of plugin names {String}.
+ * @return {Null}
+ */
 SIV_SCOPE.definePlugin = function(definition) {
   if (typeof definition.name !== 'string') {
     console.log('Siv_Plugin_Sanity - A plugin without a name was found, skipping!');
@@ -103,6 +90,117 @@ SIV_SCOPE.definePlugin = function(definition) {
   }
 }
 
+/**
+ * Will run once when: the database is loaded, the core engine variables are made,
+ * and after all the plugins are run. WARNING! This is not onStart/onNewGame/onLoad
+ * @param  {Function} func A standard function that should contain any code that
+ * needs to be run at startup.
+ * @return {Null}
+ */
+SIV_SCOPE.onInit = function(func) {
+  SIV_SCOPE._onQueue.onInit.push(func)
+}
+
+/**
+ * This will run approximately 60 times a second. Unless you have a very specific
+ * need you likely don't want to use this. This is a great way to introduce lag!
+ * @param  {Function} func A standard function that should contain any code that
+ * needs to be run once a frame.
+ * @return {Null}
+ */
+ SIV_SCOPE.onFrame = function(func) {
+   SIV_SCOPE._onQueue.onFrame.push(func)
+ }
+
+// TODO: onNewGame
+// TODO: onLoad
+// TODO: onStart
+
+/**
+ * This will run once per map after it has finished loading.
+ * @param  {[type]} func A standard function that should contain any code that
+ * needs to be run once per map.
+ * @return {[type]}      [description]
+ */
+SIV_SCOPE.onMapSetup = function(func) {
+  SIV_SCOPE._onQueue.onMapSetup.push(func)
+}
+
+/**
+ * Find out if a given game object has a notetag. This takes a query and returns
+ * a truthy or false answer. I say truthy because it returns the notetags in an
+ * array format, but an array is the same as true if you want to use an if statement.
+ *
+ * The query shoud have:
+ * the (type) of object you have - currently: "actors", "armors", 'classes',
+ * 'commonEvents', 'enemies', 'skills', 'states', 'weapons'
+ * the (id) of the object, the index or number in the database
+ * the (match) string. This can ether be an exact string match or regex query.
+ *
+ * @param  {Object} obj must contain a type {String} and an id {String} and
+ * a match {String or RegExp}.
+ * @return {Array or False} It will return an array with 1 or matchs or false.
+ */
+SIV_SCOPE.hasNotetag = function(obj) {
+  var notes = ((SIV_SCOPE._data.notetagDictionary[obj.type] || {})[obj.id] || {}).notes
+  , results = [], found;
+  if (!notes || !notes.length) return false;
+  for (var i = 0; i < notes.length; i++) {
+    found = notes[i].match(obj.match);
+    if (found) results.push(notes[i])
+  }
+  return results.length ? results : false;
+}
+
+/**
+ * [description]
+ * @param  {[type]} command [description]
+ * @param  {[type]} func    [description]
+ * @return {[type]}         [description]
+ */
+SIV_SCOPE.registerPluginCommand = function(command, func) {
+  if (command && func) SIV_SCOPE._pluginCommands[command] = func;
+}
+
+/////////////
+// API END //
+/////////////
+
+/**
+ * Builds the notetags, calls the plugin graph, build the plugins, eventuall calls onInit
+ */
+SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded = DataManager.isDatabaseLoaded;
+DataManager.isDatabaseLoaded = function() {
+  if (!SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded.apply(this, arguments)) return false;
+  if (SIV_SCOPE._data.databaseHasLoaded) return true;
+
+  SIV_SCOPE._buildNotetagDictionary('actors', $dataActors)
+  // SIV_SCOPE._buildNotetagDictionary('animations', $dataAnimations)
+  SIV_SCOPE._buildNotetagDictionary('armors', $dataArmors)
+  SIV_SCOPE._buildNotetagDictionary('classes', $dataClasses)
+  SIV_SCOPE._buildNotetagDictionary('commonEvents', $dataCommonEvents)
+  SIV_SCOPE._buildNotetagDictionary('enemies', $dataEnemies)
+  // SIV_SCOPE._buildNotetagDictionary('map', $dataMap)
+  // SIV_SCOPE._buildNotetagDictionary('mapInfos', $dataMapInfos)
+  SIV_SCOPE._buildNotetagDictionary('skills', $dataSkills)
+  SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
+  // SIV_SCOPE._buildNotetagDictionary('system', $dataSystem)
+  // SIV_SCOPE._buildNotetagDictionary('tilesets', $dataTilesets)
+  // SIV_SCOPE._buildNotetagDictionary('troops', $dataTroops)
+  SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
+
+  var pluginList = SIV_SCOPE._dependencyGraph.nodes;
+  for (var i = 0; i < pluginList.length; i++) {
+    SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
+  }
+
+  SIV_SCOPE._databaseHasLoaded()
+  return true;
+};
+
+/**
+ * part of isDatabaseLoaded
+ */
 SIV_SCOPE._buildNotetagDictionary = function(type, data) {
   SIV_SCOPE._data.notetagDictionary[type] = {}
   if (type == 'commonEvents') {
@@ -126,8 +224,39 @@ SIV_SCOPE._buildNotetagDictionary = function(type, data) {
   }
 }
 
-// onMapSetup
+/**
+ * part of isDatabaseLoaded
+ */
+SIV_SCOPE._databaseHasLoaded = function() {
+  SIV_SCOPE._data.databaseHasLoaded = true;
+  if (SIV_SCOPE._onQueue.onInit.length) {
+    for (var i = 0; i < SIV_SCOPE._onQueue.onInit.length; i++) {
+      SIV_SCOPE._onQueue.onInit[i].apply(this, arguments)
+    }
+  }
+}
 
+/**
+ * BEHOLD! The Dictionary Function Switch! Lay your worship at the feet of the
+ * JS Gods for this gift that have given us!
+ *
+ * This will fire off any functions registered by their command names. This skips
+ * all the ifs and swith logic. If its registered it will run, if nothing is registered
+ * then nothing happens. Instant wonderful perfect switch. ( I am kinda a fan :P )
+ *
+ * !!!Warning!!! Last write wins apply here. Conflicting commands will only fire
+ * the last one defined.
+ *
+ */
+SIV_SCOPE._wrapper._game_interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
+Game_Interpreter.prototype.pluginCommand = function(command) {
+	SIV_SCOPE._wrapper._game_interpreter_pluginCommand.apply(this, arguments);
+  if (SIV_SCOPE._pluginCommands[command]) SIV_SCOPE._pluginCommands[command].apply(this, arguments);
+};
+
+/**
+ * Will fire queue functions listening to onMapSetup.
+ */
 SIV_SCOPE._game_map_setup = Game_Map.prototype.setup;
 Game_Map.prototype.setup = function(mapId) {
   SIV_SCOPE._game_map_setup.apply(this, arguments)
@@ -144,67 +273,6 @@ Game_Map.prototype.setup = function(mapId) {
 };
 
 /**
- * onInit registation function
- */
-SIV_SCOPE.onMapSetup = function(func) {
-  SIV_SCOPE._onQueue.onMapSetup.push(func)
-}
-
-SIV_SCOPE.hasNotetag = function(obj) {
-  var notes = ((SIV_SCOPE._data.notetagDictionary[obj.type] || {})[obj.id] || {}).notes
-  , results = [], found;
-  if (!notes || !notes.length) return false;
-  for (var i = 0; i < notes.length; i++) {
-    found = notes[i].match(obj.match);
-    if (found) results.push(notes[i])
-  }
-  return results.length ? results : false;
-}
-
-/**
- * Will fire queue functions listening to onInit.
- */
-SIV_SCOPE._databaseHasLoaded = function() {
-  SIV_SCOPE._data.databaseHasLoaded = true;
-  if (SIV_SCOPE._onQueue.onInit.length) {
-    for (var i = 0; i < SIV_SCOPE._onQueue.onInit.length; i++) {
-      SIV_SCOPE._onQueue.onInit[i].apply(this, arguments)
-    }
-  }
-}
-
-/**
- * onInit registation function
- */
-SIV_SCOPE.onInit = function(func) {
-  SIV_SCOPE._onQueue.onInit.push(func)
-}
-
-
-/**
- * BEHOLD! The Dictionary Function Switch! Lay your worship at the feet of the
- * JS Gods for this gift that have given us!
- *
- * This will fire off any functions registared by their command names. This skips
- * all the ifs and swith logic. If its registared it will run, if nothing is registared
- * then nothing happens. Instant wonderful perfect switch. ( I am kinda a fan :P )
- *
- * !!!Warning!!! Last write wins apply here. Conflicting commands will only fire
- * the last one defined.
- *
- */
-SIV_SCOPE._wrapper._game_interpreter_pluginCommand = Game_Interpreter.prototype.pluginCommand;
-Game_Interpreter.prototype.pluginCommand = function(command) {
-	SIV_SCOPE._wrapper._game_interpreter_pluginCommand.apply(this, arguments);
-  if (SIV_SCOPE._pluginComands[command]) SIV_SCOPE._pluginComands[command].apply(this, arguments);
-};
-
-
-SIV_SCOPE.registerPlugin = function(command, func) {
-  if (command && func) SIV_SCOPE._pluginComands[command] = func;
-}
-
-/**
  * runs the onFrame queue
  */
  SIV_SCOPE._wrapper.scene_manager_update = SceneManager.update;
@@ -217,30 +285,22 @@ SIV_SCOPE.registerPlugin = function(command, func) {
    }
  }
 
-/**
- * onFrame registation function
- */
- SIV_SCOPE.onFrame = function(func) {
-   SIV_SCOPE._onQueue.onFrame.push(func)
- }
 
-
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-// OVERRIDES & JS EXTENTIONS & External code that makes me wish I could load npm depenaces //
-// I will try to keep this to a minimum.                                             //
-/////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////
+// OVERRIDES & JS EXTENTIONS & External code that makes me wish I could load npm dependances. //
+// I will try to keep this to a minimum.                                                      //
+////////////////////////////////////////////////////////////////////////////////////////////////
  Math.fmod = function (a,b) {
-   //floor mod. This vars us match the c++ webkit style of handling timestamps
+   //floor mod. This lets us match the c++ webkit style of handling timestamps
    return Number((a - (Math.floor(a / b) * b)).toPrecision(8));
  };
 
 
-//////////////////////////////////////////////////////////////////
-// A partial of Hoek                                            //
-// https://github.com/hapijs/Hoek                               //
-// https://raw.githubusercontent.com/hapijs/Hoek/master/LICENSE //
-//////////////////////////////////////////////////////////////////
+/*
+ * A partial of Hoek
+ * https://github.com/hapijs/Hoek
+ * https://raw.githubusercontent.com/hapijs/Hoek/master/LICENSE
+ */
 HOEK_NOT = {}
 HOEK_NOT.assert = function (condition /*, msg1, msg2, msg3 */) {
     if (condition) {
@@ -270,13 +330,11 @@ HOEK_NOT.shallow = function (source) {
     return target;
 };
 
-
-
-//////////////////////////////////////////////////////////////////
-// A modified version and wrapped of Topo                       //
-// https://github.com/hapijs/topo                               //
-// https://raw.githubusercontent.com/hapijs/topo/master/LICENSE //
-//////////////////////////////////////////////////////////////////
+/*
+ * A modified version and wrapped of Topo
+ * https://github.com/hapijs/topo
+ * https://raw.githubusercontent.com/hapijs/topo/master/LICENSE
+ */
 SIV_SCOPE._dependencyGraph = (function() {
   var internals = {};
   internals.Topo = function () {
