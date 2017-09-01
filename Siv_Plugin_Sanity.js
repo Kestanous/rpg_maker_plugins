@@ -1,9 +1,17 @@
 /*:
-  * @plugindesc (v0.1.0) Makes building and using plugins easier. Comes with a dependency manager.
+  * @plugindesc (v0.2.0) Makes building and using plugins easier. Comes with a dependency manager.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
   * @author Sivli Embir
+  *
+  * @param ---Variables---
+  *
+  * @param Preload Map Notes
+  * @parent ---Variables---
+  * @desc Do more work on init but save on per map load. Check console for total time taken. (~2milliseconds each)
+  * @type boolean
+  * @default false
   *
   * @help
   * ============================================================================
@@ -29,15 +37,21 @@
   * For details on how to use the API please read the comments in the code
   * for now.
   *
-  * SIV_SCOPE.definePlugin
+  * SIV_SCOPE.definePlugin (object): use dependency manager.
   *
-  * SIV_SCOPE.onInit
+  * SIV_SCOPE.hasNotetag(object): check if game object has matching notetags
   *
-  * SIV_SCOPE.onMapSetup
+  * SIV_SCOPE.registerPluginCommand (name, function): will run the funciton on
+  * plugin command call.
   *
-  * SIV_SCOPE.hasNotetag
+  * ===ON EVENTS===
+  * SIV_SCOPE.onInit (function): DB, Plutins, and note tags are laoded.
+  * SIV_SCOPE.onFrame (function): best to not use this... (if you must use scene
+  * update instead)
+  * SIV_SCOPE.onSceneEvent: (sceneType, eventName, function):
+  *   sceneType: 'title', 'map', 'menu', 'item', ext...
+  *   eventName: 'create', 'start', 'update', 'terminate', (map: 'addObjects')
   *
-  * SIV_SCOPE.registerPluginCommand
   * ============================================================================
   * Change Log
   * ============================================================================
@@ -64,11 +78,12 @@ var SIV_SCOPE = {
   _pluginCommands: {}, //This is where I store plugin functions.
   _onQueue: { //all the on[state] queue functions.
     onInit: [],
-    onFrame: [],
-    onMapSetup: []
-  }
+    onFrame: []
+  },
+  parameters: PluginManager.parameters('Siv_Plugin_Sanity')
 };
 
+SIV_SCOPE._preloadMapNotes = SIV_SCOPE.parameters['Preload Map Notes'] === 'true';
 ///////////////////////////////////////////////////////////////////////////////////
 // PUBLIC API. This is for use by anyone using the plugin. Everything after this //
 // is not meant to be used outside of the plugin, so hack at your own risk :)    //
@@ -127,18 +142,17 @@ SIV_SCOPE.onInit = function(func) {
  }
 
 // TODO: onNewGame
-// TODO: onLoad
-// TODO: onStart
+// TODO: onLoadGame
+// TODO: onStartGame
 
-/**
- * This will run once per map after it has finished loading.
- * @param  {Function} func A standard function that should contain any code that
- * needs to be run once per map.
- * @return {Null}
- */
-SIV_SCOPE.onMapSetup = function(func) {
-  SIV_SCOPE._onQueue.onMapSetup.push(func)
+SIV_SCOPE.onSceneEvent = function(scene, event, func) {
+  scene = "Scene_" + scene.charAt(0).toUpperCase() + scene.substr(1).toLowerCase();
+  event = event.toLowerCase();
+  if (!SIV_SCOPE._onQueue[scene]) SIV_SCOPE._onQueue[scene] = {}
+  if (!SIV_SCOPE._onQueue[scene][event]) SIV_SCOPE._onQueue[scene][event] = []
+  SIV_SCOPE._onQueue[scene][event].push(func);
 }
+
 
 /**
  * Find out if a given game object has a notetag. This takes a query and returns
@@ -197,24 +211,33 @@ DataManager.isDatabaseLoaded = function() {
   if (!SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded.apply(this, arguments)) return false;
   if (SIV_SCOPE._data.databaseHasLoaded) return true;
 
+  if (SIV_SCOPE._preloadMapNotes) {
+    var timestamp = (new Date()).getTime()
+    //HAHAHA YOU FOOLS we are in node. Fear my power!
+    // TODO: Ok for real, find a better way to do this. Maybe asyc stream it?
+    for (var i = 1; i < $dataMapInfos.length; i++) {
+      try {
+        SIV_SCOPE._data.notetagDictionary['maps'][$dataMapInfos[i].id] = {
+          notes: require('./data/Map%1.json'.format($dataMapInfos[i].id.padZero(3))).note.match(/<[^\r\n]+?>/g)
+        }
+      } catch (e) { console.log('found some bad map data'); }
+    }
+    console.log('Preload Map Notes added total milliseconds lag of: ', (new Date()).getTime() - timestamp)
+  }
+
   SIV_SCOPE._buildNotetagDictionary('actors', $dataActors)
-  // SIV_SCOPE._buildNotetagDictionary('animations', $dataAnimations)
   SIV_SCOPE._buildNotetagDictionary('armors', $dataArmors)
   SIV_SCOPE._buildNotetagDictionary('classes', $dataClasses)
   SIV_SCOPE._buildNotetagDictionary('commonEvents', $dataCommonEvents)
   SIV_SCOPE._buildNotetagDictionary('enemies', $dataEnemies)
-  // SIV_SCOPE._buildNotetagDictionary('map', $dataMap)
-  // SIV_SCOPE._buildNotetagDictionary('mapInfos', $dataMapInfos)
   SIV_SCOPE._buildNotetagDictionary('skills', $dataSkills)
   SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
-  // SIV_SCOPE._buildNotetagDictionary('system', $dataSystem)
-  // SIV_SCOPE._buildNotetagDictionary('tilesets', $dataTilesets)
-  // SIV_SCOPE._buildNotetagDictionary('troops', $dataTroops)
   SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
 
   var pluginList = SIV_SCOPE._dependencyGraph.nodes;
   for (var i = 0; i < pluginList.length; i++) {
-    SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
+    try { SIV_SCOPE._plugins[pluginList[i]].plugin.call(window) }
+    catch (e) { console.error(e) }
   }
 
   SIV_SCOPE._databaseHasLoaded()
@@ -260,6 +283,75 @@ SIV_SCOPE._databaseHasLoaded = function() {
 }
 
 /**
+ * the On Scene Event runners
+ */
+SIV_SCOPE._wrapper.scene_base_create = Scene_Base.prototype.create;
+Scene_Base.prototype.create = function() {
+  SIV_SCOPE._wrapper.scene_base_create.apply(this, arguments)
+  if (this.constructor.name === 'Scene_Map') { //This is a horrable lie! (use pre player transfer)
+    SIV_SCOPE._data.currentMapInstance = this;
+    return;
+  }
+  else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'create')
+}
+
+SIV_SCOPE._wrapper.scene_base_start = Scene_Base.prototype.start;
+Scene_Base.prototype.start = function() {
+  console.log(this.constructor.name);
+  SIV_SCOPE._wrapper.scene_base_start.apply(this, arguments)
+  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'start')
+  else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'start')
+}
+
+SIV_SCOPE._wrapper.scene_base_update = Scene_Base.prototype.update;
+Scene_Base.prototype.update = function() {
+  SIV_SCOPE._wrapper.scene_base_update.apply(this, arguments)
+  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'update')
+  else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'update')
+}
+
+SIV_SCOPE._wrapper.scene_base_terminate = Scene_Base.prototype.terminate;
+Scene_Base.prototype.terminate = function() {
+  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'terminate')
+  else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'terminate')
+  SIV_SCOPE._wrapper.scene_base_terminate.apply(this, arguments)
+}
+
+//fake out on map create queue to make sure the map data is actually loaded
+SIV_SCOPE._wrapper.game_player_perform_transfer = Game_Player.prototype.performTransfer;
+Game_Player.prototype.performTransfer = function() {
+  SIV_SCOPE._runOnMap.call(SIV_SCOPE._data.currentMapInstance, 'create')
+  SIV_SCOPE._wrapper.game_player_perform_transfer.apply(this, arguments)
+}
+
+SIV_SCOPE._wrapper._scene_map_create_display_objects = Scene_Map.prototype.createDisplayObjects;
+Scene_Map.prototype.createDisplayObjects = function() {
+  SIV_SCOPE._wrapper._scene_map_create_display_objects.apply(this, arguments)
+  SIV_SCOPE._runOnMap.call(this, 'addobjects')
+}
+
+SIV_SCOPE._runOnScene = function(args, name, event) {
+  if (SIV_SCOPE._onQueue[name] && SIV_SCOPE._onQueue[name][event]) {
+    for (var i = 0; i < SIV_SCOPE._onQueue[name][event].length; i++) {
+      SIV_SCOPE._onQueue[this.constructor.name][event][i].apply(this, args)
+    }
+  }
+}
+
+SIV_SCOPE._runOnMap = function(event) {
+  if (SIV_SCOPE._onQueue.Scene_Map && SIV_SCOPE._onQueue.Scene_Map[event]) {
+    for (var i = 0; i < SIV_SCOPE._onQueue.Scene_Map[event].length; i++) {
+      var mapId, oldMapId;
+      if ($gamePlayer.isTransferring()) {
+        mapId = $gamePlayer.newMapId();
+        oldMapId = $gameMap.mapId();
+      } else mapId = $gameMap.mapId();
+      SIV_SCOPE._onQueue.Scene_Map[event][i].call(this, mapId, oldMapId)
+    }
+  }
+}
+
+/**
  * BEHOLD! The Dictionary Function Switch! Lay your worship at the feet of the
  * JS Gods for this gift that they have given us!
  *
@@ -277,23 +369,20 @@ Game_Interpreter.prototype.pluginCommand = function(command) {
   if (SIV_SCOPE._pluginCommands[command]) SIV_SCOPE._pluginCommands[command].apply(this, arguments);
 };
 
+
+
+
 /**
- * Will fire queue functions listening to onMapSetup.
+ * If we have not laoded the map notes yet do so now.
  */
-SIV_SCOPE._game_map_setup = Game_Map.prototype.setup;
-Game_Map.prototype.setup = function(mapId) {
-  SIV_SCOPE._game_map_setup.apply(this, arguments)
+SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, oldMapId) {
+  if (SIV_SCOPE._preloadMapNotes) return;
   if ($dataMap && !SIV_SCOPE._data.notetagDictionary['maps'][mapId]) {
     SIV_SCOPE._data.notetagDictionary['maps'][mapId] = {
       notes: ($dataMap.note || '').match(/<[^\r\n]+?>/g)
     }
   }
-  if (SIV_SCOPE._onQueue.onMapSetup.length) {
-    for (var i = 0; i < SIV_SCOPE._onQueue.onMapSetup.length; i++) {
-      SIV_SCOPE._onQueue.onMapSetup[i].apply(this, arguments)
-    }
-  }
-};
+})
 
 /**
  * runs the onFrame queue
@@ -309,10 +398,10 @@ Game_Map.prototype.setup = function(mapId) {
  }
 
 
-////////////////////////////////////////////////////////////////////////////////////////////////
-// OVERRIDES & JS EXTENTIONS & External code that makes me wish I could load npm dependances. //
-// I will try to keep this to a minimum.                                                      //
-////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////
+// JS EXTENTIONS & External code that makes me wish I could load npm dependances. //
+// I will try to keep this to a minimum.                                          //
+////////////////////////////////////////////////////////////////////////////////////
  Math.fmod = function (a,b) {
    //floor mod. This lets us match the c++ webkit style of handling timestamps
    return Number((a - (Math.floor(a / b) * b)).toPrecision(8));

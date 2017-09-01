@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.1.0) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+  * @plugindesc (v1.1.1) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
@@ -238,6 +238,7 @@
   *
   * Version 1.0.0:
   * - Finished plugin!
+  '
   */
 
 ///////////////////////////////////////////////////////////////////
@@ -368,10 +369,10 @@
 
 
  ////////////////////////////////////////////////////
- // Notetags and onMapSetup via Siv_Plugin_Sanity. //
+ // Notetags and onMapCreate via Siv_Plugin_Sanity. //
  ////////////////////////////////////////////////////
 
- SIV_SCOPE.onMapSetup(function(mapId) {
+SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, newMapId) {
   var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
   if (SIV_SCOPE.TIME_SCOPE.enabled) {
     if (SIV_SCOPE.hasNotetag(notetagsRequest)) {
@@ -379,12 +380,11 @@
     }
   } else {
     notetagsRequest.match = "<SIV_TIME_ENABLE>"
-    if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.SIV_SCOPE.hasNotetag(notetagsRequest)) {
+    if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.hasNotetag(notetagsRequest)) {
       SIV_SCOPE.TIME_SCOPE.enabled = true;
     }
   }
-
- })
+})
 
  ///////////////////
  // Time Utilitys //
