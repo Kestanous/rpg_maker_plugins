@@ -67,7 +67,9 @@
 /////////////////////////////////////////////////////////////////////////////////
 
 var SIV_SCOPE = {
-  _wrapper: {}, //global holder for PRG Maker wraps.
+  _wrapper: {//global holder for PRG Maker wraps.
+    custom: {} //plugin defined wrappers
+  },
   _plugins: {}, //all the plugins that are registered.
   _data: { //where I will store all SIV_SCOPE global variables.
     databaseHasLoaded: false, //a way to prevent queues from firing before init.
@@ -78,7 +80,8 @@ var SIV_SCOPE = {
   _pluginCommands: {}, //This is where I store plugin functions.
   _onQueue: { //all the on[state] queue functions.
     onInit: [],
-    onFrame: []
+    onFrame: [],
+    variableChange: {},
   },
   parameters: PluginManager.parameters('Siv_Plugin_Sanity')
 };
@@ -141,16 +144,18 @@ SIV_SCOPE.onInit = function(func) {
    SIV_SCOPE._onQueue.onFrame.push(func)
  }
 
+ SIV_SCOPE.onVariableChange = function(index, func) {
+   if (!SIV_SCOPE._onQueue.variableChange[index]) SIV_SCOPE._onQueue.variableChange[index] = []
+   SIV_SCOPE._onQueue.variableChange[index].push(func)
+ }
+
 // TODO: onNewGame
 // TODO: onLoadGame
 // TODO: onStartGame
 
 SIV_SCOPE.onSceneEvent = function(scene, event, func) {
-  scene = "Scene_" + scene.charAt(0).toUpperCase() + scene.substr(1).toLowerCase();
+  SIV_SCOPE.onEvent(scene.name, event, func)
   event = event.toLowerCase();
-  if (!SIV_SCOPE._onQueue[scene]) SIV_SCOPE._onQueue[scene] = {}
-  if (!SIV_SCOPE._onQueue[scene][event]) SIV_SCOPE._onQueue[scene][event] = []
-  SIV_SCOPE._onQueue[scene][event].push(func);
 }
 
 
@@ -199,6 +204,31 @@ SIV_SCOPE.registerPluginCommand = function(command, func) {
   if (command && func) SIV_SCOPE._pluginCommands[command] = func;
 }
 
+SIV_SCOPE.fireCustomEvent = function() {
+  var args = [];
+  Array.prototype.push.apply( args, arguments );
+  if (!args[0]) {
+    console.log("fireCustomEvent: Missing name");
+    return;
+  }
+  if (!args[1]) {
+    console.log("fireCustomEvent: Missing method");
+    return;
+  }
+  var name = args.shift();
+  var method = args.shift();
+  SIV_SCOPE._runOnScene.call(this, args, name, method)
+}
+
+SIV_SCOPE.onEvent = function(name, method, func) {
+  name = name.toLowerCase();
+  method = method.toLowerCase();
+  if (!SIV_SCOPE._onQueue[name]) SIV_SCOPE._onQueue[name] = {}
+  if (!SIV_SCOPE._onQueue[name][method]) SIV_SCOPE._onQueue[name][method] = []
+  SIV_SCOPE._onQueue[name][method].push(func);
+}
+
+
 /////////////
 // API END //
 /////////////
@@ -236,8 +266,7 @@ DataManager.isDatabaseLoaded = function() {
 
   var pluginList = SIV_SCOPE._dependencyGraph.nodes;
   for (var i = 0; i < pluginList.length; i++) {
-    try { SIV_SCOPE._plugins[pluginList[i]].plugin.call(window) }
-    catch (e) { console.error(e) }
+    SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
   }
 
   SIV_SCOPE._databaseHasLoaded()
@@ -288,7 +317,7 @@ SIV_SCOPE._databaseHasLoaded = function() {
 SIV_SCOPE._wrapper.scene_base_create = Scene_Base.prototype.create;
 Scene_Base.prototype.create = function() {
   SIV_SCOPE._wrapper.scene_base_create.apply(this, arguments)
-  if (this.constructor.name === 'Scene_Map') { //This is a horrable lie! (use pre player transfer)
+  if (this.constructor.name === Scene_Map.name) { //This is a horrable lie! (use pre player transfer)
     SIV_SCOPE._data.currentMapInstance = this;
     return;
   }
@@ -297,22 +326,21 @@ Scene_Base.prototype.create = function() {
 
 SIV_SCOPE._wrapper.scene_base_start = Scene_Base.prototype.start;
 Scene_Base.prototype.start = function() {
-  console.log(this.constructor.name);
   SIV_SCOPE._wrapper.scene_base_start.apply(this, arguments)
-  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'start')
+  if (this.constructor.name === Scene_Map.name) SIV_SCOPE._runOnMap.call(this, 'start')
   else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'start')
 }
 
 SIV_SCOPE._wrapper.scene_base_update = Scene_Base.prototype.update;
 Scene_Base.prototype.update = function() {
   SIV_SCOPE._wrapper.scene_base_update.apply(this, arguments)
-  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'update')
+  if (this.constructor.name === Scene_Map.name) SIV_SCOPE._runOnMap.call(this, 'update')
   else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'update')
 }
 
 SIV_SCOPE._wrapper.scene_base_terminate = Scene_Base.prototype.terminate;
 Scene_Base.prototype.terminate = function() {
-  if (this.constructor.name === 'Scene_Map') SIV_SCOPE._runOnMap.call(this, 'terminate')
+  if (this.constructor.name === Scene_Map.name) SIV_SCOPE._runOnMap.call(this, 'terminate')
   else SIV_SCOPE._runOnScene.call(this, arguments, this.constructor.name, 'terminate')
   SIV_SCOPE._wrapper.scene_base_terminate.apply(this, arguments)
 }
@@ -327,26 +355,42 @@ Game_Player.prototype.performTransfer = function() {
 SIV_SCOPE._wrapper._scene_map_create_display_objects = Scene_Map.prototype.createDisplayObjects;
 Scene_Map.prototype.createDisplayObjects = function() {
   SIV_SCOPE._wrapper._scene_map_create_display_objects.apply(this, arguments)
-  SIV_SCOPE._runOnMap.call(this, 'addobjects')
+  SIV_SCOPE._runOnMap.call(this, 'addObjects')
 }
 
 SIV_SCOPE._runOnScene = function(args, name, event) {
+  name = name.toLowerCase()
+  event = event.toLowerCase()
   if (SIV_SCOPE._onQueue[name] && SIV_SCOPE._onQueue[name][event]) {
     for (var i = 0; i < SIV_SCOPE._onQueue[name][event].length; i++) {
-      SIV_SCOPE._onQueue[this.constructor.name][event][i].apply(this, args)
+      SIV_SCOPE._onQueue[name][event][i].apply(this, args)
     }
   }
 }
 
 SIV_SCOPE._runOnMap = function(event) {
-  if (SIV_SCOPE._onQueue.Scene_Map && SIV_SCOPE._onQueue.Scene_Map[event]) {
-    for (var i = 0; i < SIV_SCOPE._onQueue.Scene_Map[event].length; i++) {
+  event = event.toLowerCase()
+  if (SIV_SCOPE._onQueue.scene_map && SIV_SCOPE._onQueue.scene_map[event]) {
+    for (var i = 0; i < SIV_SCOPE._onQueue.scene_map[event].length; i++) {
       var mapId, oldMapId;
       if ($gamePlayer.isTransferring()) {
         mapId = $gamePlayer.newMapId();
         oldMapId = $gameMap.mapId();
       } else mapId = $gameMap.mapId();
-      SIV_SCOPE._onQueue.Scene_Map[event][i].call(this, mapId, oldMapId)
+      SIV_SCOPE._onQueue.scene_map[event][i].call(this, mapId, oldMapId)
+    }
+  }
+}
+
+
+
+//we should use onChange but it does not have the index or the value...
+SIV_SCOPE._wrapper.game_variables_set_value = Game_Variables.prototype.setValue
+Game_Variables.prototype.setValue = function(index) {
+  SIV_SCOPE._wrapper.game_variables_set_value.apply(this, arguments);
+  if (SIV_SCOPE._onQueue.variableChange[index]) {
+    for (var i = 0; i < SIV_SCOPE._onQueue.variableChange[index].length; i++) {
+      SIV_SCOPE._onQueue.variableChange[index][i].apply(this, arguments);
     }
   }
 }
@@ -375,7 +419,7 @@ Game_Interpreter.prototype.pluginCommand = function(command) {
 /**
  * If we have not laoded the map notes yet do so now.
  */
-SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, oldMapId) {
+SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, oldMapId) {
   if (SIV_SCOPE._preloadMapNotes) return;
   if ($dataMap && !SIV_SCOPE._data.notetagDictionary['maps'][mapId]) {
     SIV_SCOPE._data.notetagDictionary['maps'][mapId] = {
@@ -397,6 +441,77 @@ SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, oldMapId) {
    }
  }
 
+ function Window_Smart_Text() {
+   Window_Smart_Text.prototype.initialize.apply(this, arguments)
+ }
+ Window_Smart_Text.prototype = Object.create(Window_Base.prototype);
+
+ Window_Smart_Text.prototype.initialize = function(settings) {
+   //It seems there must be a bug with MV 1.5 window initialize.
+   //It does not let you grow the size of your window content (may I am missing something?)
+   //Eather way setting it to full screen size does the trick.
+   //We then resize with refresh so the correct window size is always displayed.
+   Window_Base.prototype.initialize.call(this, 0, 0, Graphics.boxWidth, Graphics.boxHeight);
+   this._defaultSettings = Object.assign({}, {
+     positionX:   50,
+     positionY:   50,
+     fontSize:    20,
+     padding:     18,
+     textSpacing: 4,
+     visible: true
+   }, settings);
+   this._textRows = []
+   this.contents.fontSize = settings.fontSize;
+   this.padding = settings.padding;
+   this.visible = settings.visible;
+   this.refresh()
+ }
+
+ Window_Smart_Text.prototype.refresh = function() {
+   if (this.visible) {
+     this.contents.clear();
+     this._textRows = [];
+     if (this.addContents) this.addContents();
+     var totalTextWidth = 0, totalTextHeight = 0;
+
+     //calculate needed settings
+     totalTextHeight = (this.contents.fontSize + this._defaultSettings.textSpacing)
+       * (this._textRows.length) - + this._defaultSettings.textSpacing;
+     for (var i = 0; i < this._textRows.length; i++) {
+       totalTextWidth = Math.max( totalTextWidth, this.contents.measureTextWidth(this._textRows[i]));
+     }
+
+
+     //acutally draw contents
+     for (var i = 0; i < this._textRows.length; i++) {
+       this.contents.drawText(this._textRows[i], 0, (this.contents.fontSize + this._defaultSettings.textSpacing) * i, totalTextWidth, this.contents.fontSize, 'center');
+     }
+
+     totalTextWidth += this.padding * 2
+     totalTextHeight += this.padding * 2
+     this.move(this.getPercentX(this._defaultSettings.positionX, totalTextWidth)
+      , this.getPercentY(this._defaultSettings.positionY, totalTextHeight)
+      , totalTextWidth, totalTextHeight)
+   }
+ };
+
+ Window_Smart_Text.prototype.addText = function(text) {
+     this._textRows.push(text)
+ }
+
+ //the mockup of our smart window
+ Window_Smart_Text.prototype.getPercentX = function(target, offset) {
+   return this._percent(Graphics.boxWidth, target, offset);
+ }
+ Window_Smart_Text.prototype.getPercentY = function(target, offset) {
+   return this._percent(Graphics.boxHeight, target, offset);
+ }
+ Window_Smart_Text.prototype._percent = function(fullSize, target, offset) {
+   offset = offset || 0;
+   var pix = (fullSize - offset) * (target / 100);
+   if (pix < 0) return 0;
+   return pix;
+ }
 
 ////////////////////////////////////////////////////////////////////////////////////
 // JS EXTENTIONS & External code that makes me wish I could load npm dependances. //
@@ -667,3 +782,8 @@ SIV_SCOPE._dependencyGraph = (function() {
   };
   return new internals.Topo();
 })()
+
+// going old school with some mustache.js
+// https://github.com/janl/mustache.js
+// https://github.com/janl/mustache.js/blob/master/LICENSE
+!function(b,c){"object"==typeof exports&&exports&&"string"!=typeof exports.nodeName?c(exports):"function"==typeof define&&define.amd?define(["exports"],c):(b.Mustache={},c(b.Mustache))}(this,function(b){function e(a){return"function"==typeof a}function f(a){return d(a)?"array":typeof a}function g(a){return a.replace(/[\-\[\]{}()*+?.,\\\^$|#\s]/g,"\\$&")}function h(a,b){return null!=a&&"object"==typeof a&&b in a}function j(a,b){return i.call(a,b)}function l(a){return!j(k,a)}function n(a){return String(a).replace(/[&<>"'`=\/]/g,function(b){return m[b]})}function t(a,c){function k(){if(i&&!j)for(;h.length;)delete f[h.pop()];else h=[];i=!1,j=!1}function x(a){if("string"==typeof a&&(a=a.split(p,2)),!d(a)||2!==a.length)throw new Error("Invalid tags: "+a);m=new RegExp(g(a[0])+"\\s*"),n=new RegExp("\\s*"+g(a[1])),t=new RegExp("\\s*"+g("}"+a[1]))}if(!a)return[];var m,n,t,e=[],f=[],h=[],i=!1,j=!1;x(c||b.tags);for(var z,A,B,C,D,E,y=new w(a);!y.eos();){if(z=y.pos,B=y.scanUntil(m))for(var F=0,G=B.length;F<G;++F)C=B.charAt(F),l(C)?h.push(f.length):j=!0,f.push(["text",C,z,z+1]),z+=1,"\n"===C&&k();if(!y.scan(m))break;if(i=!0,A=y.scan(s)||"name",y.scan(o),"="===A?(B=y.scanUntil(q),y.scan(q),y.scanUntil(n)):"{"===A?(B=y.scanUntil(t),y.scan(r),y.scanUntil(n),A="&"):B=y.scanUntil(n),!y.scan(n))throw new Error("Unclosed tag at "+y.pos);if(D=[A,B,z,y.pos],f.push(D),"#"===A||"^"===A)e.push(D);else if("/"===A){if(!(E=e.pop()))throw new Error('Unopened section "'+B+'" at '+z);if(E[1]!==B)throw new Error('Unclosed section "'+E[1]+'" at '+z)}else"name"===A||"{"===A||"&"===A?j=!0:"="===A&&x(B)}if(E=e.pop())throw new Error('Unclosed section "'+E[1]+'" at '+y.pos);return v(u(f))}function u(a){for(var c,d,b=[],e=0,f=a.length;e<f;++e)(c=a[e])&&("text"===c[0]&&d&&"text"===d[0]?(d[1]+=c[1],d[3]=c[3]):(b.push(c),d=c));return b}function v(a){for(var e,f,b=[],c=b,d=[],g=0,h=a.length;g<h;++g)switch(e=a[g],e[0]){case"#":case"^":c.push(e),d.push(e),c=e[4]=[];break;case"/":f=d.pop(),f[5]=e[2],c=d.length>0?d[d.length-1][4]:b;break;default:c.push(e)}return b}function w(a){this.string=a,this.tail=a,this.pos=0}function x(a,b){this.view=a,this.cache={".":this.view},this.parent=b}function y(){this.cache={}}var c=Object.prototype.toString,d=Array.isArray||function(b){return"[object Array]"===c.call(b)},i=RegExp.prototype.test,k=/\S/,m={"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;","/":"&#x2F;","`":"&#x60;","=":"&#x3D;"},o=/\s*/,p=/\s+/,q=/\s*=/,r=/\s*\}/,s=/#|\^|\/|>|\{|&|=|!/;w.prototype.eos=function(){return""===this.tail},w.prototype.scan=function(b){var c=this.tail.match(b);if(!c||0!==c.index)return"";var d=c[0];return this.tail=this.tail.substring(d.length),this.pos+=d.length,d},w.prototype.scanUntil=function(b){var d,c=this.tail.search(b);switch(c){case-1:d=this.tail,this.tail="";break;case 0:d="";break;default:d=this.tail.substring(0,c),this.tail=this.tail.substring(c)}return this.pos+=d.length,d},x.prototype.push=function(b){return new x(b,this)},x.prototype.lookup=function(b){var d,c=this.cache;if(c.hasOwnProperty(b))d=c[b];else{for(var g,i,f=this,j=!1;f;){if(b.indexOf(".")>0)for(d=f.view,g=b.split("."),i=0;null!=d&&i<g.length;)i===g.length-1&&(j=h(d,g[i])),d=d[g[i++]];else d=f.view[b],j=h(f.view,b);if(j)break;f=f.parent}c[b]=d}return e(d)&&(d=d.call(this.view)),d},y.prototype.clearCache=function(){this.cache={}},y.prototype.parse=function(b,c){var d=this.cache,e=d[b];return null==e&&(e=d[b]=t(b,c)),e},y.prototype.render=function(b,c,d){var e=this.parse(b),f=c instanceof x?c:new x(c);return this.renderTokens(e,f,d,b)},y.prototype.renderTokens=function(b,c,d,e){for(var g,h,i,f="",j=0,k=b.length;j<k;++j)i=void 0,g=b[j],h=g[0],"#"===h?i=this.renderSection(g,c,d,e):"^"===h?i=this.renderInverted(g,c,d,e):">"===h?i=this.renderPartial(g,c,d,e):"&"===h?i=this.unescapedValue(g,c):"name"===h?i=this.escapedValue(g,c):"text"===h&&(i=this.rawValue(g)),void 0!==i&&(f+=i);return f},y.prototype.renderSection=function(b,c,f,g){function k(a){return h.render(a,c,f)}var h=this,i="",j=c.lookup(b[1]);if(j){if(d(j))for(var l=0,m=j.length;l<m;++l)i+=this.renderTokens(b[4],c.push(j[l]),f,g);else if("object"==typeof j||"string"==typeof j||"number"==typeof j)i+=this.renderTokens(b[4],c.push(j),f,g);else if(e(j)){if("string"!=typeof g)throw new Error("Cannot use higher-order sections without the original template");j=j.call(c.view,g.slice(b[3],b[5]),k),null!=j&&(i+=j)}else i+=this.renderTokens(b[4],c,f,g);return i}},y.prototype.renderInverted=function(b,c,e,f){var g=c.lookup(b[1]);if(!g||d(g)&&0===g.length)return this.renderTokens(b[4],c,e,f)},y.prototype.renderPartial=function(b,c,d){if(d){var f=e(d)?d(b[1]):d[b[1]];return null!=f?this.renderTokens(this.parse(f),c,d,f):void 0}},y.prototype.unescapedValue=function(b,c){var d=c.lookup(b[1]);if(null!=d)return d},y.prototype.escapedValue=function(c,d){var e=d.lookup(c[1]);if(null!=e)return b.escape(e)},y.prototype.rawValue=function(b){return b[1]},b.name="mustache.js",b.version="2.3.0",b.tags=["{{","}}"];var z=new y;return b.clearCache=function(){return z.clearCache()},b.parse=function(b,c){return z.parse(b,c)},b.render=function(b,c,d){if("string"!=typeof b)throw new TypeError('Invalid template! Template should be a "string" but "'+f(b)+'" was given as the first argument for mustache#render(template, view, partials)');return z.render(b,c,d)},b.to_html=function(c,d,f,g){var h=b.render(c,d,f);if(!e(g))return h;g(h)},b.escape=n,b.Scanner=w,b.Context=x,b.Writer=y,b});

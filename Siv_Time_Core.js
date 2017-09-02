@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.1.1) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+  * @plugindesc (v1.2.0) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
@@ -31,13 +31,13 @@
   * @parent ---Parameters---
   * @desc [Optional] See help. What time units to use in the getTime utility function.
   * @type string
-  * @default Seconds, Minutes, Hours, Days, Weeks, Months, Years
+  * @default Seconds, Minutes, Hours, Days, Months, Years
   *
   * @param Time Units
   * @parent ---Parameters---
   * @desc [Optional] See help. With defaults 60 frames = 1 sec, 60 sec = 1 min... 12 months = 1 year. Match name order.
   * @type string
-  * @default 60, 60, 60, 24, 7, 4, 12
+  * @default 60, 60, 60, 24, 30, 12
   *
   * @param ---Wait-Settings---
   *
@@ -203,7 +203,11 @@
   * - if true it will dump endless streams of logs. Usually you want to turn
   * this on and off quickly and scroll backwards.
   *
-  * SIV_SCOPE.TIME_SCOPE.enabled = boolean
+  * SIV_SCOPE.TIME_SCOPE.enable & SIV_SCOPE.TIME_SCOPE.disable
+  * - turns the plugin on and off respectivly, may be overloaded with other
+  * plugins.
+  *
+  * SIV_SCOPE.TIME_SCOPE._enabled == boolean
   * - if false it will do nothing every frame.
   *
   * SIV_SCOPE.TIME_SCOPE.timestampUpdate = function (value, set)
@@ -230,6 +234,9 @@
   * ============================================================================
   *
   * Version 1.1.0:
+  * - add enable/diable methods and moved enabled to _enabled
+  *
+  * Version 1.1.0:
   * - Now requires Siv_Plugin_Sanity!
   * - Added notetags for map enable/diable
   * - Added Autostart on map parameters
@@ -253,34 +260,32 @@
  /////////////////////////////
 
  SIV_SCOPE.TIME_SCOPE = {}
+ SIV_SCOPE.TIME_SCOPE.parameters = PluginManager.parameters('Siv_Time_Core');
+ SIV_SCOPE.TIME_SCOPE.debug = false;
+ SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
+ SIV_SCOPE.TIME_SCOPE._enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
 
- SIV_SCOPE.onInit(function() {
-   SIV_SCOPE.TIME_SCOPE.parameters = PluginManager.parameters('Siv_Time_Core');
-   SIV_SCOPE.TIME_SCOPE.debug = false;
-   SIV_SCOPE.TIME_SCOPE._timestamp_var = parseInt(SIV_SCOPE.TIME_SCOPE.parameters['TimeStamp Variable']) || 0;
-   SIV_SCOPE.TIME_SCOPE.enabled = SIV_SCOPE.TIME_SCOPE.parameters['Start By Default'] === 'true';
-   SIV_SCOPE.TIME_SCOPE.autoStart = SIV_SCOPE.TIME_SCOPE.parameters['Autostart On Map'] === 'true';
-
-   // time unit config
-   SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Names'].split(', ')
-   SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].replace(/ /g,'').split(',').map(function (n) {
-     return parseInt(n)
-   })
-   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
-
-   // do some frame math now to save time later.
-   for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
-     var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
-     for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
-     SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
-   }
-
-   // Wait config
-   SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
-   SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
-   SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
-   SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
+ // time unit config
+ SIV_SCOPE.TIME_SCOPE.timeUnits = SIV_SCOPE.TIME_SCOPE.parameters['Time Unit Names'].split(', ')
+ SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub = SIV_SCOPE.TIME_SCOPE.parameters['Time Units'].replace(/ /g,'').split(',').map(function (n) {
+   return parseInt(n)
  })
+ SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame = []
+
+ // do some frame math now to save time later.
+ for (var i = 0; i < SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub.length; i++) {
+   var base = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[i], multiplyer = 1;
+   for (var ii = i-1; ii >= 0; ii--) multiplyer = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub[ii] * multiplyer;
+   SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[i] = base * multiplyer;
+ }
+
+ // Wait config
+ SIV_SCOPE.TIME_SCOPE.neverWait = SIV_SCOPE.TIME_SCOPE.parameters['Never Wait'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
+ SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
+
 
  ///////////////
  // Main Code //
@@ -292,7 +297,7 @@
   */
  SIV_SCOPE.onFrame(function() {
    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('--SceneManager Update--');
-   if (!SIV_SCOPE.TIME_SCOPE.enabled) {
+   if (!SIV_SCOPE.TIME_SCOPE._enabled) {
      if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Disabled');
      return;
    }
@@ -318,6 +323,16 @@
    if (SIV_SCOPE.TIME_SCOPE.debug) console.log('should stamp: ', shouldStamp);
    if (shouldStamp) SIV_SCOPE.TIME_SCOPE.timestampUpdate();
  });
+
+ SIV_SCOPE.TIME_SCOPE.enable = function() {
+   SIV_SCOPE.TIME_SCOPE._enabled = true
+   SIV_SCOPE.fireCustomEvent('time_core', 'enable')
+ }
+
+ SIV_SCOPE.TIME_SCOPE.disable = function() {
+   SIV_SCOPE.TIME_SCOPE._enabled = false
+   SIV_SCOPE.fireCustomEvent('time_core', 'disable')
+ }
 
  /**
   * Simple if scene type (string) is in the allow array then truthy.
@@ -355,10 +370,10 @@
  ////////////////////////////////////////////////
 
  SIV_SCOPE.registerPluginCommand("ENABLE_TIME", function() {
-   SIV_SCOPE.TIME_SCOPE.enabled = true;
+   SIV_SCOPE.TIME_SCOPE.enable()
  })
  SIV_SCOPE.registerPluginCommand("DISABLE_TIME", function() {
-   SIV_SCOPE.TIME_SCOPE.enabled = false;
+   SIV_SCOPE.TIME_SCOPE.disable()
  })
  SIV_SCOPE.registerPluginCommand("ADD_TIME", function(command, args) {
    SIV_SCOPE.TIME_SCOPE.timestampUpdate(parseInt(args[0]), args[1]);
@@ -372,16 +387,14 @@
  // Notetags and onMapCreate via Siv_Plugin_Sanity. //
  ////////////////////////////////////////////////////
 
-SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, newMapId) {
+SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, newMapId) {
   var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
-  if (SIV_SCOPE.TIME_SCOPE.enabled) {
-    if (SIV_SCOPE.hasNotetag(notetagsRequest)) {
-      SIV_SCOPE.TIME_SCOPE.enabled = false;
-    }
+  if (SIV_SCOPE.TIME_SCOPE._enabled) {
+    if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.TIME_SCOPE.disable()
   } else {
     notetagsRequest.match = "<SIV_TIME_ENABLE>"
     if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.hasNotetag(notetagsRequest)) {
-      SIV_SCOPE.TIME_SCOPE.enabled = true;
+      SIV_SCOPE.TIME_SCOPE.enable()
     }
   }
 })
@@ -394,9 +407,9 @@ SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, newMapId) {
   * I used basily the same setup that webkit (chrome/safari) use in c++ for JS DATE
   * http://trac.webkit.org/browser/webkit/releases/WebKitGTK/webkit-1.1.1/JavaScriptCore/runtime/DateMath.cpp
   */
- SIV_SCOPE.TIME_SCOPE.getTime = function() {
-   var frames = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0
-   , time = {}, timeUnits = SIV_SCOPE.TIME_SCOPE.timeUnits
+ SIV_SCOPE.TIME_SCOPE.getTime = function(frames, shooldPadZero) {
+   frames = frames || $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0
+   var time = {}, timeUnits = SIV_SCOPE.TIME_SCOPE.timeUnits
    , perSub = SIV_SCOPE.TIME_SCOPE.timeUnitsPerSub
    , perFrame = SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame
    , lastIndex = timeUnits.length - 1;
@@ -404,6 +417,7 @@ SIV_SCOPE.onSceneEvent('map', 'create', function(mapId, newMapId) {
    for (var i = 0; i < lastIndex; i++) {
      time[timeUnits[i]] = Math.fmod(Math.floor(frames / perFrame[i]), perSub[i+1])
      if (time[timeUnits[i]] < 0) time[timeUnits[i]] = perFrame[i+1];
+     if (shooldPadZero) time[timeUnits[i]] = time[timeUnits[i]].padZero(perSub[i].toString().length)
    }
    time[timeUnits[lastIndex]] = Math.floor(frames / perFrame[lastIndex])
    if (time[timeUnits[lastIndex]] < 0) time[timeUnits[lastIndex]] = 0;

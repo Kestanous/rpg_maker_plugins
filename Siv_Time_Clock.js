@@ -1,9 +1,82 @@
 /*:
-  * @plugindesc (v1.0.0) [requires Siv_Plugin_Sanity v0.1.0] In-game time system UI
+  * @plugindesc (v1.0.0) [requires Siv_Time_Core v1.2.0] In-game time system UI
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
   * @author Sivli Embir
+  *
+  * @param ---Window Settings---
+  *
+  * @param Position X
+  * @parent ---Window Settings---
+  * @desc Where you want to center the window width wize. 0-100 (%)
+  * @type number
+  * @min 0
+  * max 100
+  * @default 50
+  *
+  * @param Position Y
+  * @parent ---Window Settings---
+  * @desc Where you want to center the window height wize. 0-100 (%)
+  * @type number
+  * @min 0
+  * max 100
+  * @default 0
+  *
+  * @param Font Size
+  * @parent ---Window Settings---
+  * @desc How large you want the text to be.
+  * @type number
+  * @min 0
+  * @default 20
+  *
+  * @param Padding
+  * @parent ---Window Settings---
+  * @desc How much space inside the border before the text starts.
+  * @type number
+  * @min 0
+  * @default 18
+  *
+  * @param Text Spacing
+  * @parent ---Window Settings---
+  * @desc How much space after each row before the next row starts.
+  * @type number
+  * @min 0
+  * @default 4
+  *
+  * @param ---Settings---
+  *
+  * @param Rate Limiter
+  * @parent ---Settings---
+  * @desc Only update the clock when this time unit updates
+  * @type text
+  * @default Seconds
+  *
+  * @param Disable on Time Core Disable
+  * @parent ---Settings---
+  * @desc Hide clock if time core is disabled.
+  * @type boolean
+  * @default true
+  *
+  * @param ---Time Display---
+  *
+  * @param Text Row 1
+  * @parent ---Time Display---
+  * @desc First row of your clock
+  * @type text
+  * @default Current Time
+  *
+  * @param Text Row 2
+  * @parent ---Time Display---
+  * @desc Second row of your clock (optional)
+  * @type text
+  * @default {{Hours}}:{{Minutes}}:{{Seconds}}
+  *
+  * @param Text Row 3
+  * @parent ---Time Display---
+  * @desc Third row of your clock (optional)
+  * @type text
+  * @default {{Days}}/{{Months}}/{{Years}}
   *
   * @help
   * ============================================================================
@@ -25,151 +98,119 @@
    name: 'Siv_Time_Clock',
    requires: ['Siv_Time_Core'],
    plugin: function() {
+SIV_SCOPE.CLOCK_SCOPE = {
+  parameters: PluginManager.parameters('Siv_Time_Clock'),
+  visible: true,
+  _canvas: document.createElement('canvas')
+}
+SIV_SCOPE.CLOCK_SCOPE.timeDisplayText = []
+SIV_SCOPE.CLOCK_SCOPE.disableOnTimeDisable = SIV_SCOPE.CLOCK_SCOPE.parameters['Disable on Time Core Disable'] == 'true'
+SIV_SCOPE.CLOCK_SCOPE._canvas_context = SIV_SCOPE.CLOCK_SCOPE._canvas.getContext('2d')
 
-     //==============================
-     // * createDisplayObjects
-     //==============================
-     SIV_SCOPE.onSceneEvent('map', 'addObjects', function(mapId, oldMapId) {
-       var clock = new Window_Clock();
-       this.addChild(clock)
-     })
+var timeUnitIndex = SIV_SCOPE.TIME_SCOPE.timeUnits.indexOf(SIV_SCOPE.CLOCK_SCOPE.parameters['Rate Limiter'])
+SIV_SCOPE.CLOCK_SCOPE.rateLimiter = SIV_SCOPE.TIME_SCOPE.timeUnitsPerFrame[timeUnitIndex]
 
-     //TODO: Rrefresh rate limit
-     //TODO: get window size
+SIV_SCOPE.CLOCK_SCOPE.positionX = parseInt(SIV_SCOPE.CLOCK_SCOPE.parameters['Position X'])
+SIV_SCOPE.CLOCK_SCOPE.positionY = parseInt(SIV_SCOPE.CLOCK_SCOPE.parameters['Position Y'])
+SIV_SCOPE.CLOCK_SCOPE.fontSize  = parseInt(SIV_SCOPE.CLOCK_SCOPE.parameters['Font Size'])
+SIV_SCOPE.CLOCK_SCOPE.padding   = parseInt(SIV_SCOPE.CLOCK_SCOPE.parameters['Padding'])
+SIV_SCOPE.CLOCK_SCOPE.textSpacing = parseInt(SIV_SCOPE.CLOCK_SCOPE.parameters['Text Spacing'])
 
-     //=============================================================================
-     // ** Window_Time_Status
-     //=============================================================================
-     function Window_Clock() {
-         this.initialize.apply(this, arguments);
-     };
+for(var key in SIV_SCOPE.CLOCK_SCOPE.parameters) {
+  if(/Text Row/.test(key)) {
+    SIV_SCOPE.CLOCK_SCOPE.timeDisplayText.push(SIV_SCOPE.CLOCK_SCOPE.parameters[key])
+  }
+}
 
-     Window_Clock.prototype = Object.create(Window_Base.prototype);
-     Window_Clock.prototype.constructor = Window_Clock;
+//////////////
+//API START //
+//////////////
 
-     //==============================
-     // * Initialize
-     //==============================
-     Window_Clock.prototype.initialize = function() {
-        var positionX = this.percentX(100, 100)
-        var positionY = this.percentY(0, 100)
-        Window_Base.prototype.initialize.call(this, positionX, positionY, 100, 100);
-     // 	this.contents.fontSize = 20;
-     // 	this._window_size = [-500,-500,0,0];
-     // 	this._old_play_time = $gameSystem.playtime();
-      //  this.visible = true;
-      //  this.contentsOpacity = 100;
-      //  this.set_window_size();
-     };
 
-     //==============================
-     // * Set Window Size
-     //==============================
-    //  Window_Clock.prototype.set_window_size = function() {
-    //    console.log('set_window_size');
-    //     this.y = 100;
-    //     this.x = 100;
-    //     this.height = 120;
-    //     this._mode = 1;
-    //     this._window_size = [this.x - ($gameMap.tileWidth() / 2),this.y - $gameMap.tileHeight()
-    //     , this.width + this.x - $gameMap.tileWidth(),this.height + this.y];
-    //     this.refresh();
-    //  };
-    Window_Clock.prototype.percentX(target, offset) {
-       return _percent(Graphics.boxWidth, target, offset);
-     }
-     Window_Clock.prototype.percentY(target, offset) {
-       return _percent(Graphics.boxHeight, target, offset);
-     }
-     Window_Clock.prototype._percent(fullSize, target, offset) {
-       var pix = fullSize * (target / 100);
-       if (pix + offset > fullSize) return fullSize - offset;
-       return pix;
-     }
+SIV_SCOPE.CLOCK_SCOPE.enable = function() {
+  SIV_SCOPE.CLOCK_SCOPE.visible = true;
+  if (SIV_SCOPE.CLOCK_SCOPE.clock) SIV_SCOPE.CLOCK_SCOPE.clock.refresh();
+};
 
-     //==============================
-     // * Refresh
-     //==============================
-     Window_Clock.prototype.refresh = function() {
-       console.log('refresh');
-       this.contents.clear();
-   	   this.draw_time_contents();
-     };
+SIV_SCOPE.CLOCK_SCOPE.disable = function() {
+  SIV_SCOPE.CLOCK_SCOPE.visible = false;
+  if (SIV_SCOPE.CLOCK_SCOPE.clock) SIV_SCOPE.CLOCK_SCOPE.clock.refresh();
+};
 
-     //==============================
-     // * Update
-     //==============================
-    //  Window_Clock.prototype.update = function() {
-    //  	Window_Base.prototype.update.call(this);
-    //   this.refresh()
-    //  // 	this.visible = this.need_visible();
-    //   // console.log('update');
-    //   // if ($gameSystem._refresh_window_time) {this.refresh();}
-    //  // 	if (this.need_fade()) {this.opacity -= 15;}
-    //  // 	else {this.opacity += 15};
-    //  // 	this.contentsOpacity = this.opacity;
-    //  // 	if (this._mode === 0 && this._old_play_time != $gameSystem.playtime()) {
-    //  // 	  this.refresh(); this._old_play_time = $gameSystem.playtime()
-    //  // 	};
-    //  };
+SIV_SCOPE.registerPluginCommand("ENABLE_TIME_Clock", function() {
+  SIV_SCOPE.CLOCK_SCOPE.enable()
+})
+SIV_SCOPE.registerPluginCommand("DISABLE_TIME_Clock", function() {
+  SIV_SCOPE.CLOCK_SCOPE.disable()
+})
 
-     //==============================
-     // * Need Visible
-     //==============================
-     Window_Clock.prototype.need_visible = function() {
-     	return $gameSystem._time_window_visible;
-     };
+SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, newMapId) {
+  var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_CLOCK:DISABLE>" }
+  if (SIV_SCOPE.CLOCK_SCOPE.visible) {
+    if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.CLOCK_SCOPE.disable()
+  } else {
+    notetagsRequest.match = "<SIV_TIME_CLOCK:ENABLE>"
+    if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.CLOCK_SCOPE.enable()
+  }
+})
 
-     //==============================
-     // * Need Fade
-     //==============================
-     Window_Clock.prototype.need_fade = function() {
-     	if ($gamePlayer.screen_realX() < this._window_size[0]) {return false};
-     	if ($gamePlayer.screen_realX() > this._window_size[2]) {return false};
-     	if ($gamePlayer.screen_realY() < this._window_size[1]) {return false};
-     	if ($gamePlayer.screen_realY() > this._window_size[3]) {return false};
-     	if (this.opacity < 100) {return false};
-     	return true;
-     };
+/////////////
+// API END //
+/////////////
 
-     //==============================
-     // * Draw Time Contents
-     //==============================
-     Window_Clock.prototype.draw_time_contents = function() {
-        var x = this.width - 130;
-        var y = 26;
-        console.log('draw_time_contents');
-        this.contents.drawText('Hello World', 10, 10, 10, 10, "right");
-        // if (this.pm_mode) {var apm = " am";if ($gameSystem.hour() >= 12) {var apm = " pm"};
-     	 //   this.contents.drawText($gameSystem.hour_pm() + ":" +  $gameSystem.minute().padZero(2) + apm, x, 0, 90,32,"right");
-        // }
-        // else {
-        //    this.contents.drawText($gameSystem.hour().padZero(2) + ":" +  $gameSystem.minute().padZero(2), x, 0, 90,32,"right");
-        // };
-        // if (this._mode === 1) {
-        //     this.contents.drawText(Moghunter.day_word, 0, y, 90,32);
-     	 //   var text = $gameSystem.day_week_name() + " " + $gameSystem.month().padZero(2) + "/" + $gameSystem.day().padZero(2);
-     	 //   this.contents.drawText(text, x - 30, y, 120,32,"right");
-     	 //   this.contents.drawText(Moghunter.year_word, 0, y * 2, 90,32);
-     	 //   var text = $gameSystem.year() + " " + $gameSystem.season_name();
-     	 //   this.contents.drawText(text, x - 30, y * 2, 120,32,"right");
-        // }
-        // else {
-     	 //   this.contents.drawText($gameSystem.day(), x, y, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.day_word, 0, y, 90,32);
-     	 //   this.contents.drawText($gameSystem.day(), x, y, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.day_week_word, 0, y * 2, 90,32);
-     	 //   this.contents.drawText($gameSystem.day_week_name(), x, y * 2, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.month_word, 0, y * 3, 90,32);
-     	 //   this.contents.drawText($gameSystem.month_name(), x, y * 3, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.year_word, 0, y * 4, 90,32);
-     	 //   this.contents.drawText($gameSystem.year(), x, y * 4, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.season_word, 0, y * 5, 90,32);
-     	 //   this.contents.drawText($gameSystem.season_name(), x, y * 5, 90,32,"right");
-     	 //   this.contents.drawText(Moghunter.play_time_word, 0, y * 6, 90,32);
-     	 //   this.contents.drawText($gameSystem.playtimeText(), x, y * 6, 90,32,"right");
-        // };
-     };
+//rather then update every frame only update when the var changes
+//also only update when there is a visible change.
+SIV_SCOPE.onVariableChange(SIV_SCOPE.TIME_SCOPE._timestamp_var, function(index, value) {
+ if (SIV_SCOPE.CLOCK_SCOPE.clock && SIV_SCOPE.CLOCK_SCOPE.clock.visible) {
+   var delta = Math.floor(value / SIV_SCOPE.CLOCK_SCOPE.rateLimiter)
+   if (delta != SIV_SCOPE.CLOCK_SCOPE._lastUpdate) {
+     SIV_SCOPE.CLOCK_SCOPE._lastUpdate = delta
+     SIV_SCOPE.CLOCK_SCOPE.clock.refresh();
+   }
+ }
+})
+
+//Only load the time core events if we will use them
+if (SIV_SCOPE.CLOCK_SCOPE.disableOnTimeDisable) {
+  SIV_SCOPE.onEvent('time_core', 'enable', function() {
+    SIV_SCOPE.CLOCK_SCOPE.visible = true;
+    if (SIV_SCOPE.CLOCK_SCOPE.clock) SIV_SCOPE.CLOCK_SCOPE.clock.refresh();
+  })
+  SIV_SCOPE.onEvent('time_core', 'disable', function() {
+    SIV_SCOPE.CLOCK_SCOPE.visible = false;
+    if (SIV_SCOPE.CLOCK_SCOPE.clock) SIV_SCOPE.CLOCK_SCOPE.clock.refresh();
+  })
+}
+
+//add the clock to each map (in case they manually enable it)
+SIV_SCOPE.onSceneEvent(Scene_Map, 'addObjects', function(mapId, oldMapId) {
+  SIV_SCOPE.CLOCK_SCOPE.clock = new Window_Clock({
+    positionX:    SIV_SCOPE.CLOCK_SCOPE.positionX,
+    positionY:    SIV_SCOPE.CLOCK_SCOPE.positionY,
+    fontSize:     SIV_SCOPE.CLOCK_SCOPE.fontSize,
+    padding:      SIV_SCOPE.CLOCK_SCOPE.padding,
+    textSpacing:  SIV_SCOPE.CLOCK_SCOPE.textSpacing,
+    visible:      SIV_SCOPE.CLOCK_SCOPE.visible
+  }); //118, 56
+  this.addChild(SIV_SCOPE.CLOCK_SCOPE.clock)
+  SIV_SCOPE.CLOCK_SCOPE.clock.refresh()
+})
+
+//////////////////////////////////////////////////////////////
+// Window_Smart_Text from Siv_Plugin_Sanity.                //
+// It acts like the help window but is much more adjustable //
+//////////////////////////////////////////////////////////////
+function Window_Clock() { Window_Smart_Text.prototype.initialize.apply(this, arguments) }
+Window_Clock.prototype = Object.create(Window_Smart_Text.prototype);
+Window_Clock.prototype.addContents = function() {
+  this.visible = SIV_SCOPE.CLOCK_SCOPE.visible;
+  if (!this.visible) return;
+  for (var i = 0; i < SIV_SCOPE.CLOCK_SCOPE.timeDisplayText.length; i++) {
+    if (SIV_SCOPE.CLOCK_SCOPE.timeDisplayText[i].length) {
+      this.addText(Mustache.render(SIV_SCOPE.CLOCK_SCOPE.timeDisplayText[i], SIV_SCOPE.TIME_SCOPE.getTime(null, true)))
+    }
+  }
+};
 
    }
  })
