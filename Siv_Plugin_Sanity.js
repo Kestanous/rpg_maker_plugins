@@ -277,6 +277,8 @@ DataManager.isDatabaseLoaded = function() {
   SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
   SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
 
+  // TODO: the required plugins don't see to be showing in in the nodes....
+  // find and fix ASAP
   var pluginList = SIV_SCOPE._dependencyGraph.nodes;
   for (var i = 0; i < pluginList.length; i++) {
     SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
