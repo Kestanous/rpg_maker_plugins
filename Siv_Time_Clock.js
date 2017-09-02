@@ -1,9 +1,9 @@
 /*:
-  * @plugindesc (v1.0.0) [requires Siv_Time_Core v1.2.0] In-game time system UI
+  * @plugindesc (v1.0.0) [requires Siv_Time_Core v1.2.0 and up] In-game clock / time UI
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
-  * @author Sivli Embir
+  * @author Sivli Embir & Noxx Embir
   *
   * @param ---Window Settings---
   *
@@ -90,6 +90,16 @@
   * Version 1.0.0:
   * - Finished plugin!
   */
+
+/**
+ * Developed By Team:
+ *  ██████╗  ██████╗ ███████╗███████╗    ██████╗ ██████╗  █████╗  ██████╗  ██████╗ ███╗   ██╗
+ *  ██╔══██╗██╔═══██╗██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗████╗  ██║
+ *  ██████╔╝██║   ██║███████╗█████╗      ██║  ██║██████╔╝███████║██║  ███╗██║   ██║██╔██╗ ██║
+ *  ██╔══██╗██║   ██║╚════██║██╔══╝      ██║  ██║██╔══██╗██╔══██║██║   ██║██║   ██║██║╚██╗██║
+ *  ██║  ██║╚██████╔╝███████║███████╗    ██████╔╝██║  ██║██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║
+ *  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝
+ */
 
 ///////////////////////////////////////////////////////////////////
 // Plugin registation with Siv_Plugin_Sanity dependency manager. //

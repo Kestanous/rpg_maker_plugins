@@ -1,9 +1,9 @@
 /*:
-  * @plugindesc (v0.2.0) Makes building and using plugins easier. Comes with a dependency manager.
+  * @plugindesc (v0.3.0) Makes building and using plugins easier. Comes with a dependency manager.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
-  * @author Sivli Embir
+  * @author Sivli Embir & Noxx Embir
   *
   * @param ---Variables---
   *
@@ -26,7 +26,7 @@
   * be fully documented and its version will say v0.x.
   *
   * The point of this plugin is to make creating plugins easier and reduce
-  * avoidable bugs. Amonge other things it has a dependency manager, which means
+  * avoidable bugs. Among other things it has a dependency manager, which means
   * if you define your plugins with this tool they will always load in the
   * order you want regardless of the order in the offical Plugin Manager.
   *
@@ -58,7 +58,18 @@
   *
   * Version 0.0.0:
   * - Pending v1
-*/
+  */
+
+/**
+ * Developed By Team:
+ *  ██████╗  ██████╗ ███████╗███████╗    ██████╗ ██████╗  █████╗  ██████╗  ██████╗ ███╗   ██╗
+ *  ██╔══██╗██╔═══██╗██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗████╗  ██║
+ *  ██████╔╝██║   ██║███████╗█████╗      ██║  ██║██████╔╝███████║██║  ███╗██║   ██║██╔██╗ ██║
+ *  ██╔══██╗██║   ██║╚════██║██╔══╝      ██║  ██║██╔══██╗██╔══██║██║   ██║██║   ██║██║╚██╗██║
+ *  ██║  ██║╚██████╔╝███████║███████╗    ██████╔╝██║  ██║██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║
+ *  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝
+ */
+
 
 /////////////////////////////////////////////////////////////////////////////////
 // Some good house keeping given we don't have nice js2016+ import scoping.    //
@@ -83,6 +94,8 @@ var SIV_SCOPE = {
     onFrame: [],
     variableChange: {},
   },
+  _extractSaveContents: [],
+  _makeSaveContents: [],
   parameters: PluginManager.parameters('Siv_Plugin_Sanity')
 };
 
@@ -186,14 +199,14 @@ SIV_SCOPE.hasNotetag = function(obj) {
 }
 
 /**
- * This lets you run plugin commands is a very fast efficent way.
+ * This lets you run plugin commands in a very fast and efficent way.
  *
  * Warning: Last write wins case, the last plugin to use the same command name
  * will be the only one to use the command. Breaking change from core!
  *
  * TODO: consider building in a namespace backend option, or front end even...
  * but how??? The user will only say the original name, how do we get intent?
- * Can we run all matchs? Should we? IMO no but...
+ * Can we run all matchs? Should we? imo no but...
  *
  * @param  {String} command A globally unique name for your command
  * @param  {Function} func  A standard function that will preform whatever
@@ -312,8 +325,35 @@ SIV_SCOPE._databaseHasLoaded = function() {
 }
 
 /**
+ * mostly safe mutator, this will not give plugins game core save data. It's
+ * still risky as they can put too much into it. Use with discretion please!
+ */
+SIV_SCOPE._wrapper.data_manager_make_save_contents = DataManager.makeSaveContents;
+DataManager.makeSaveContents = function() {
+  var contents = SIV_SCOPE._wrapper.data_manager_make_save_contents.apply(this, arguments)
+  if (!contents['SIV_SAVE_DATA']) contents['SIV_SAVE_DATA'] = {}
+  for (var i = 0; i < SIV_SCOPE._makeSaveContents.length; i++) {
+    SIV_SCOPE._makeSaveContents[i].call(this, contents['SIV_SAVE_DATA'])
+  }
+  return contents;
+}
+
+/**
+ * Much safer the makeSaveContents, this just loads in the SIV_SAVE_DATA scope
+ */
+SIV_SCOPE._wrapper.data_manager_extract_save_contents = DataManager.extractSaveContents;
+DataManager.extractSaveContents = function() {
+ SIV_SCOPE._wrapper.data_manager_extract_save_contents.apply(this, arguments)
+ for (var i = 0; i < SIV_SCOPE._extractSaveContents.length; i++) {
+   SIV_SCOPE._extractSaveContents[i].call(this, arguments[0]['SIV_SAVE_DATA'])
+ }
+}
+
+
+/**
  * the On Scene Event runners
  */
+
 SIV_SCOPE._wrapper.scene_base_create = Scene_Base.prototype.create;
 Scene_Base.prototype.create = function() {
   SIV_SCOPE._wrapper.scene_base_create.apply(this, arguments)

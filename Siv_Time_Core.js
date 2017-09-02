@@ -1,9 +1,9 @@
 /*:
-  * @plugindesc (v1.2.0) [requires Siv_Plugin_Sanity v0.1.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+  * @plugindesc (v1.3.0) [requires Siv_Plugin_Sanity v0.3.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
-  * @author Sivli Embir
+  * @author Sivli Embir & Noxx Embir
   *
   * @param ---Variables---
   *
@@ -233,7 +233,10 @@
   * Change Log
   * ============================================================================
   *
-  * Version 1.1.0:
+  * Version 1.3.0:
+  * - added SIV_TIME_CORE_WAIT plugin commands that persist on save!
+  *
+  * Version 1.2.0:
   * - add enable/diable methods and moved enabled to _enabled
   *
   * Version 1.1.0:
@@ -247,6 +250,16 @@
   * - Finished plugin!
   '
   */
+
+/**
+ * Developed By Team:
+ *  ██████╗  ██████╗ ███████╗███████╗    ██████╗ ██████╗  █████╗  ██████╗  ██████╗ ███╗   ██╗
+ *  ██╔══██╗██╔═══██╗██╔════╝██╔════╝    ██╔══██╗██╔══██╗██╔══██╗██╔════╝ ██╔═══██╗████╗  ██║
+ *  ██████╔╝██║   ██║███████╗█████╗      ██║  ██║██████╔╝███████║██║  ███╗██║   ██║██╔██╗ ██║
+ *  ██╔══██╗██║   ██║╚════██║██╔══╝      ██║  ██║██╔══██╗██╔══██║██║   ██║██║   ██║██║╚██╗██║
+ *  ██║  ██║╚██████╔╝███████║███████╗    ██████╔╝██║  ██║██║  ██║╚██████╔╝╚██████╔╝██║ ╚████║
+ *  ╚═╝  ╚═╝ ╚═════╝ ╚══════╝╚══════╝    ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═══╝
+ */
 
 ///////////////////////////////////////////////////////////////////
 // Plugin registation with Siv_Plugin_Sanity dependency manager. //
@@ -285,6 +298,10 @@
  SIV_SCOPE.TIME_SCOPE.waitEvents = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Events'] === 'true';
  SIV_SCOPE.TIME_SCOPE.waitDialog = SIV_SCOPE.TIME_SCOPE.parameters['Wait For Dialog'] === 'true';
  SIV_SCOPE.TIME_SCOPE.allowedSceneList = SIV_SCOPE.TIME_SCOPE.parameters['Allowed Scenes'].replace(/ /g,'').toUpperCase().split(',')
+
+ //event wait
+ SIV_SCOPE.TIME_SCOPE._waitingEvent = {}
+ SIV_SCOPE.TIME_SCOPE._waiting = []
 
 
  ///////////////
@@ -357,17 +374,34 @@
 
    if (shouldSet && value) {
      $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, value)
+     SIV_SCOPE.TIME_SCOPE._checkWaiting(value)
    } else {
      value = value || 1;
      var oldStamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0;
      if (SIV_SCOPE.TIME_SCOPE.debug) console.log('Old timestamp', oldStamp);
      $gameVariables.setValue(SIV_SCOPE.TIME_SCOPE._timestamp_var, oldStamp + value)
+     SIV_SCOPE.TIME_SCOPE._checkWaiting(oldStamp + value)
    }
  }
 
- ////////////////////////////////////////////////
- // Plugin command registration via Siv_Plugin_Sanity. //
- ////////////////////////////////////////////////
+  SIV_SCOPE._makeSaveContents.push(function(contents) {
+    contents['TIME_SCOPE'] = {
+      waiting:      SIV_SCOPE.TIME_SCOPE._waiting,
+      waitingEvent: SIV_SCOPE.TIME_SCOPE._waitingEvent
+    }
+  })
+
+  SIV_SCOPE._extractSaveContents.push(function(contents) {
+    if (contents['TIME_SCOPE']) {
+      SIV_SCOPE.TIME_SCOPE._waiting = contents['TIME_SCOPE'].waiting || [];
+      SIV_SCOPE.TIME_SCOPE._waitingEvent = contents['TIME_SCOPE'].waitingEvent || {};
+    }
+  })
+
+ /////////////////////////////////////////////////////////
+ // Plugin command registration via Siv_Plugin_Sanity.  //
+ /////////////////////////////////////////////////////////
+
 
  SIV_SCOPE.registerPluginCommand("ENABLE_TIME", function() {
    SIV_SCOPE.TIME_SCOPE.enable()
@@ -381,6 +415,31 @@
  SIV_SCOPE.registerPluginCommand("REMOVE_TIME", function() {
    SIV_SCOPE.TIME_SCOPE.timestampUpdate(-1 * parseInt(args[0]));
  })
+ SIV_SCOPE.registerPluginCommand("SIV_TIME_CORE_WAIT", function(command, args) {
+   var key = [this._mapId, this._eventId, args[1].toUpperCase()].join()
+   , timestamp = $gameVariables.value(SIV_SCOPE.TIME_SCOPE._timestamp_var) || 0;
+   timestamp += parseInt(args[0])
+   if (SIV_SCOPE.TIME_SCOPE._waiting.indexOf(timestamp) == -1) {
+     SIV_SCOPE.TIME_SCOPE._waiting.push(timestamp)
+     SIV_SCOPE.TIME_SCOPE._waiting.sort(function(a,b) { return a > b })
+   }
+   if (!SIV_SCOPE.TIME_SCOPE._waitingEvent[timestamp]) SIV_SCOPE.TIME_SCOPE._waitingEvent[timestamp] = []
+   SIV_SCOPE.TIME_SCOPE._waitingEvent[timestamp].push({key: key, on: (args[2] || '').toUpperCase() !== 'OFF'})
+ })
+
+SIV_SCOPE.TIME_SCOPE._checkWaiting = function(timestamp) {
+  for (var i = 0; i < SIV_SCOPE.TIME_SCOPE._waiting.length; i++) {
+    if (timestamp >= SIV_SCOPE.TIME_SCOPE._waiting[i]) {
+      var timeIndex = SIV_SCOPE.TIME_SCOPE._waiting.splice(i, 1)[0];
+      if (SIV_SCOPE.TIME_SCOPE._waitingEvent[timeIndex]) {
+        for (var i = 0; i < SIV_SCOPE.TIME_SCOPE._waitingEvent[timeIndex].length; i++) {
+          $gameSelfSwitches.setValue(SIV_SCOPE.TIME_SCOPE._waitingEvent[timeIndex][i].key
+            , SIV_SCOPE.TIME_SCOPE._waitingEvent[timeIndex][i].on);
+        }
+      }
+    } else break;
+  }
+}
 
 
  ////////////////////////////////////////////////////
