@@ -5,13 +5,6 @@
   *
   * @author Sivli Embir & Noxx Embir
   *
-  * @param ---Variables---
-  *
-  * @param Preload Map Notes
-  * @parent ---Variables---
-  * @desc Do more work on init but save on per map load. Check console for total time taken. (~2milliseconds each)
-  * @type boolean
-  * @default false
   *
   * @help
   * ============================================================================
@@ -85,7 +78,8 @@ var SIV_SCOPE = {
   _data: { //where I will store all SIV_SCOPE global variables.
     databaseHasLoaded: false, //a way to prevent queues from firing before init.
     notetagDictionary: { //A list of ALL the notetags in the game
-      maps: {} //maps require special treatment.
+      maps: {}, //maps require special treatment.
+      mapEvents: {} //map events require special treatment.
     }
   },
   _pluginCommands: {}, //This is where I store plugin functions.
@@ -98,8 +92,6 @@ var SIV_SCOPE = {
   _makeSaveContents: [],
   parameters: PluginManager.parameters('Siv_Plugin_Sanity')
 };
-
-SIV_SCOPE._preloadMapNotes = SIV_SCOPE.parameters['Preload Map Notes'] === 'true';
 ///////////////////////////////////////////////////////////////////////////////////
 // PUBLIC API. This is for use by anyone using the plugin. Everything after this //
 // is not meant to be used outside of the plugin, so hack at your own risk :)    //
@@ -173,6 +165,7 @@ SIV_SCOPE.onSceneEvent = function(scene, event, func) {
 
 
 /**
+ * TODO: These comments are out of date
  * Find out if a given game object has a notetag. This takes a query and returns
  * a truthy or false answer. I say truthy because it returns the notetags in an
  * array format, but an array is the same as true if you want to use an if statement.
@@ -183,19 +176,26 @@ SIV_SCOPE.onSceneEvent = function(scene, event, func) {
  * the (id) of the object, the index or number in the database
  * the (match) string. This can ether be an exact string match or regex query.
  *
- * @param  {Object} obj must contain a type {String} and an id {String} and
- * a match {String or RegExp}.
- * @return {Array or False} It will return an array with 1 or matchs or false.
+ * @param  {Object} obj must contain a type {String} and an id {Number} and
+ * a name {String}. mapEvents also requires a mapId {Number}
+ * @return {Array}
  */
-SIV_SCOPE.hasNotetag = function(obj) {
-  var notes = ((SIV_SCOPE._data.notetagDictionary[obj.type] || {})[obj.id] || {}).notes
-  , results = [], found;
-  if (!notes || !notes.length) return false;
-  for (var i = 0; i < notes.length; i++) {
-    found = notes[i].match(obj.match);
-    if (found) results.push(notes[i])
+SIV_SCOPE.getNotetags = function(obj) {
+  var notes;
+  if (obj.type === 'mapEvents') {
+    if (!obj.mapId) {
+      console.log('mapEvents must have mapId.');
+      return []
+    }
+    notes = (((SIV_SCOPE._data.notetagDictionary[obj.type] || {})[obj.mapId] || {})[obj.id] || {}).notes
+  } else {
+    notes = ((SIV_SCOPE._data.notetagDictionary[obj.type] || {})[obj.id] || {}).notes
   }
-  return results.length ? results : false;
+  if (!notes || !notes.length) return [];
+  if (!obj.name) return notes;
+  return notes.filter(function(note) {
+    return note.tag == obj.name;
+  })
 }
 
 /**
@@ -254,20 +254,6 @@ DataManager.isDatabaseLoaded = function() {
   if (!SIV_SCOPE._wrapper.data_manager_isDatabaseLoaded.apply(this, arguments)) return false;
   if (SIV_SCOPE._data.databaseHasLoaded) return true;
 
-  if (SIV_SCOPE._preloadMapNotes) {
-    var timestamp = (new Date()).getTime()
-    //HAHAHA YOU FOOLS we are in node. Fear my power!
-    // TODO: Ok for real, find a better way to do this. Maybe asyc stream it?
-    for (var i = 1; i < $dataMapInfos.length; i++) {
-      try {
-        SIV_SCOPE._data.notetagDictionary['maps'][$dataMapInfos[i].id] = {
-          notes: require('./data/Map%1.json'.format($dataMapInfos[i].id.padZero(3))).note.match(/<[^\r\n]+?>/g)
-        }
-      } catch (e) { console.log('found some bad map data'); }
-    }
-    console.log('Preload Map Notes added total milliseconds lag of: ', (new Date()).getTime() - timestamp)
-  }
-
   SIV_SCOPE._buildNotetagDictionary('actors', $dataActors)
   SIV_SCOPE._buildNotetagDictionary('armors', $dataArmors)
   SIV_SCOPE._buildNotetagDictionary('classes', $dataClasses)
@@ -277,6 +263,8 @@ DataManager.isDatabaseLoaded = function() {
   SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
   SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
 
+  // TODO: the required plugins don't see to be showing in in the nodes....
+  // find and fix
   var pluginList = SIV_SCOPE._dependencyGraph.nodes;
   for (var i = 0; i < pluginList.length; i++) {
     SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
@@ -293,23 +281,49 @@ SIV_SCOPE._buildNotetagDictionary = function(type, data) {
   SIV_SCOPE._data.notetagDictionary[type] = {}
   if (type == 'commonEvents') {
     for (var i = 1; i < data.length; i++) {
-      var notes = [];
-      for (var ii = 0; ii < data[i].list.length; ii++) {
-        if (data[i].list[ii].code == 108) {
-          for (var iii = 0; iii < data[i].list[ii].parameters.length; iii++) {
-            notes.push(data[i].list[ii].parameters[iii])
-          }
-        }
-      }
+      var notes = SIV_SCOPE._parseEventPageNotes(data[i], []);
       SIV_SCOPE._data.notetagDictionary[type][i] = {notes: notes}
     }
   } else {
     for (var i = 1; i < data.length; i++) {
       SIV_SCOPE._data.notetagDictionary[type][i] = {
-        notes: data[i].note.match(/<[^\r\n]+?>/g)
+        notes: SIV_SCOPE._parseNoteTag(data[i].note)
       }
     }
   }
+}
+SIV_SCOPE._parseEventPageNotes = function(page, notes) {
+  for (var i = 0; i < page.list.length; i++) {
+    if (page.list[i].code == 108 || page.list[i].code == 408) {
+      for (var ii = 0; ii < page.list[i].parameters.length; ii++) {
+        notes = notes.concat(SIV_SCOPE._parseNoteTag(page.list[i].parameters[ii]))
+      }
+    }
+  }
+  return notes;
+}
+
+SIV_SCOPE._parseNoteTag = function(notes) {
+  var match, results = [], headerEndStrip = 2;
+  if (notes && notes.length) match = notes.match(/<(?:(?!\/>).|\n)+\/>/g)
+  if (!match || !match.length) return results;
+  for (var i = 0; i < match.length; i++) {
+    var note = {}
+    , children = match[i].split('\n') //break by line, tags without children will return 1
+    , header = children.shift(); //this is the acutal tag
+
+    if (children.length > 0) {
+      headerEndStrip = 1
+      children.pop() //throw out the last line as its only the close tag
+      note.children = children
+    }
+    //remove `< & >` and break up the tag and arguments
+    header = header.trim().substring(1, header.length-headerEndStrip).split(' ').filter(function(s) { return s.length })
+    note.tag = header.shift()
+    note.args = header
+    results.push(note)
+  }
+  return results;
 }
 
 /**
@@ -435,6 +449,24 @@ Game_Variables.prototype.setValue = function(index) {
   }
 }
 
+//117 == call common event from other event (-_- bad naming convention IMO)
+SIV_SCOPE._wrapper.game_interpreter_command117 = Game_Interpreter.prototype.command117;
+Game_Interpreter.prototype.command117 = function() {
+  var commonEventId = this._params[0]
+  , result = SIV_SCOPE._wrapper.game_interpreter_command117.apply(this, arguments);
+  if (this._childInterpreter) this._childInterpreter._commonEventId = commonEventId;
+  return result
+};
+
+Game_Interpreter.prototype.getOriginEventId = function() {
+  var isCommonEvent = (this._depth > 0)
+  return {
+    id: (isCommonEvent) ? this._commonEventId : this._eventId,
+    commonEvent: isCommonEvent
+  }
+}
+
+
 /**
  * BEHOLD! The Dictionary Function Switch! Lay your worship at the feet of the
  * JS Gods for this gift that they have given us!
@@ -458,12 +490,24 @@ Game_Interpreter.prototype.pluginCommand = function(command) {
 
 /**
  * If we have not laoded the map notes yet do so now.
+ * This is also where we should get the map event notes.
  */
 SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, oldMapId) {
   if (SIV_SCOPE._preloadMapNotes) return;
   if ($dataMap && !SIV_SCOPE._data.notetagDictionary['maps'][mapId]) {
     SIV_SCOPE._data.notetagDictionary['maps'][mapId] = {
-      notes: ($dataMap.note || '').match(/<[^\r\n]+?>/g)
+      notes: SIV_SCOPE._parseNoteTag($dataMap.note)
+    }
+    SIV_SCOPE._data.notetagDictionary['mapEvents'][mapId] = {}
+    for (var eventId = 1; eventId < $dataMap.events.length; eventId++) {
+      SIV_SCOPE._data.notetagDictionary['mapEvents'][mapId][eventId] = {}
+      var notes = []
+      for (var pageIndex = 0; pageIndex < $dataMap.events[eventId].pages.length; pageIndex++) {
+        notes = SIV_SCOPE._parseEventPageNotes($dataMap.events[eventId].pages[pageIndex], notes)
+      }
+      SIV_SCOPE._data.notetagDictionary['mapEvents'][mapId][eventId] = {
+        notes: notes
+      }
     }
   }
 })
