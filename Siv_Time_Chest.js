@@ -34,7 +34,6 @@
 ///////////////////////////////////////////////////////////////////
  SIV_SCOPE.definePlugin({
    name: 'Siv_Random_Chest',
-   requires: ['Siv_Plugin_Sanity'],
    plugin: function() {
 
 

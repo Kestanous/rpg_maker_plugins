@@ -119,11 +119,19 @@ SIV_SCOPE.definePlugin = function(definition) {
     return;
   }
   SIV_SCOPE._plugins[definition.name] = definition;
-
-  if (definition.requires) {
-    SIV_SCOPE._dependencyGraph.add(definition.name, {after: definition.requires})
-  } else {
-    SIV_SCOPE._dependencyGraph.add(definition.name)
+  try {
+    SIV_SCOPE._dependencyGraph.addNode(definition.name)
+    if (definition.requires) {
+      for (var i = 0; i < definition.requires.length; i++) {
+        SIV_SCOPE._dependencyGraph.addDependency(definition.name, definition.requires[i]);
+      }
+    }
+  } catch (e) {
+    if (Utils.isNwjs()) {
+      var _debugWindow = require('nw.gui').Window.get().showDevTools();
+      _debugWindow.focus();
+    }
+    throw e;
   }
 }
 
@@ -265,7 +273,7 @@ DataManager.isDatabaseLoaded = function() {
 
   // TODO: the required plugins don't see to be showing in in the nodes....
   // find and fix ASAP
-  var pluginList = SIV_SCOPE._dependencyGraph.nodes;
+  var pluginList = SIV_SCOPE._dependencyGraph.overallOrder();
   for (var i = 0; i < pluginList.length; i++) {
     SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
   }
@@ -609,263 +617,13 @@ SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, oldMapId) {
 
 // TODO: REWRITE these code bits so they take less room and focus just on what we need.
 
-/*
- * A partial of Hoek
- * https://github.com/hapijs/Hoek
- * https://raw.githubusercontent.com/hapijs/Hoek/master/LICENSE
+/**
+ * A simple dependency graph
+ * https://github.com/jriecken/dependency-graph
+ * https://github.com/jriecken/dependency-graph/blob/master/LICENSE
  */
-HOEK_NOT = {}
-HOEK_NOT.assert = function (condition /*, msg1, msg2, msg3 */) {
-    if (condition) {
-        return;
-    }
-    if (arguments.length === 2 && arguments[1] instanceof Error) {
-        throw arguments[1];
-    }
-    var msgs = [];
-    for (var i = 1; i < arguments.length; ++i) {
-        if (arguments[i] !== '') {
-            msgs.push(arguments[i]);            // Avoids Array.slice arguments leak, allowing for V8 optimizations
-        }
-    }
-    msgs = msgs.map(function(msg) {
-        return typeof msg === 'string' ? msg : msg instanceof Error ? msg.message : JSON.stringify(msg);
-    });
-    throw new Error(msgs.join(' ') || 'Unknown error');
-};
-HOEK_NOT.shallow = function (source) {
-    var target = {};
-    var keys = Object.keys(source);
-    for (var i = 0; i < keys.length; ++i) {
-        var key = keys[i];
-        target[key] = source[key];
-    }
-    return target;
-};
-
-/*
- * A modified version of and wrapped Topo
- * https://github.com/hapijs/topo
- * https://raw.githubusercontent.com/hapijs/topo/master/LICENSE
- */
-SIV_SCOPE._dependencyGraph = (function() {
-  var internals = {};
-  internals.Topo = function () {
-
-      this._items = [];
-      this.nodes = [];
-  };
-  internals.Topo.prototype.add = function (nodes, options) {
-      options = options || {};
-      var self = this;
-
-      // Validate rules
-
-      var before = [].concat(options.before || []);
-      var after = [].concat(options.after || []);
-      var group = options.group || '?';
-      var sort = options.sort || 0;                   // Used for merging only
-
-      HOEK_NOT.assert(before.indexOf(group) === -1, 'Item cannot come before itself:', group);
-      HOEK_NOT.assert(before.indexOf('?') === -1, 'Item cannot come before unassociated items');
-      HOEK_NOT.assert(after.indexOf(group) === -1, 'Item cannot come after itself:', group);
-      HOEK_NOT.assert(after.indexOf('?') === -1, 'Item cannot come after unassociated items');
-
-      ([].concat(nodes)).forEach(function (node, i) {
-
-          var item = {
-              seq: self._items.length,
-              sort,
-              before,
-              after,
-              group,
-              node
-          };
-
-          self._items.push(item);
-      });
-
-      // Insert event
-
-      var error = this._sort();
-      HOEK_NOT.assert(!error, 'item', (group !== '?' ? 'added into group ' + group : ''), 'created a dependencies error');
-
-      return this.nodes;
-  };
-
-
-  internals.Topo.prototype.merge = function (others) {
-
-      others = [].concat(others);
-      for (var i = 0; i < others.length; ++i) {
-          var other = others[i];
-          if (other) {
-              for (var j = 0; j < other._items.length; ++j) {
-                  var item = HOEK_NOT.shallow(other._items[j]);
-                  this._items.push(item);
-              }
-          }
-      }
-
-      // Sort items
-
-      this._items.sort(internals.mergeSort);
-      for (var i = 0; i < this._items.length; ++i) {
-          this._items[i].seq = i;
-      }
-
-      var error = this._sort();
-      HOEK_NOT.assert(!error, 'merge created a dependencies error');
-
-      return this.nodes;
-  };
-
-
-  internals.mergeSort = function (a, b) {
-
-      return a.sort === b.sort ? 0 : (a.sort < b.sort ? -1 : 1);
-  };
-
-
-  internals.Topo.prototype._sort = function () {
-      var self = this;
-      // varruct graph
-
-      var graph = {};
-      var graphAfters = Object.create(null); // A prototype can bungle lookups w/ false positives
-      var groups = Object.create(null);
-
-      for (var i = 0; i < this._items.length; ++i) {
-          var item = this._items[i];
-          var seq = item.seq;                         // Unique across all items
-          var group = item.group;
-
-          // Determine Groups
-
-          groups[group] = groups[group] || [];
-          groups[group].push(seq);
-
-          // Build intermediary graph using 'before'
-
-          graph[seq] = item.before;
-
-          // Build second intermediary graph with 'after'
-
-          var after = item.after;
-          for (var j = 0; j < after.length; ++j) {
-              graphAfters[after[j]] = (graphAfters[after[j]] || []).concat(seq);
-          }
-      }
-
-      // Expand intermediary graph
-
-      var graphNodes = Object.keys(graph);
-      for (var i = 0; i < graphNodes.length; ++i) {
-          var node = graphNodes[i];
-          var expandedGroups = [];
-
-          var graphNodeItems = Object.keys(graph[node]);
-          for (var j = 0; j < graphNodeItems.length; ++j) {
-              var group = graph[node][graphNodeItems[j]];
-              groups[group] = groups[group] || [];
-
-              for (var k = 0; k < groups[group].length; ++k) {
-                  expandedGroups.push(groups[group][k]);
-              }
-          }
-          graph[node] = expandedGroups;
-      }
-
-      // Merge intermediary graph using graphAfters into final graph
-
-      var afterNodes = Object.keys(graphAfters);
-      for (var i = 0; i < afterNodes.length; ++i) {
-          var group = afterNodes[i];
-
-          if (groups[group]) {
-              for (var j = 0; j < groups[group].length; ++j) {
-                  var node = groups[group][j];
-                  graph[node] = graph[node].concat(graphAfters[group]);
-              }
-          }
-      }
-
-      // Compile ancestors
-
-      var children;
-      var ancestors = {};
-      graphNodes = Object.keys(graph);
-      for (var i = 0; i < graphNodes.length; ++i) {
-          var node = graphNodes[i];
-          children = graph[node];
-
-          for (var j = 0; j < children.length; ++j) {
-              ancestors[children[j]] = (ancestors[children[j]] || []).concat(node);
-          }
-      }
-
-      // Topo sort
-
-      var visited = {};
-      var sorted = [];
-
-      for (var i = 0; i < this._items.length; ++i) {          // Really looping thru item.seq values out of order
-          var next = i;
-
-          if (ancestors[i]) {
-              next = null;
-              for (var j = 0; j < this._items.length; ++j) {  // As above, these are item.seq values
-                  if (visited[j] === true) {
-                      continue;
-                  }
-
-                  if (!ancestors[j]) {
-                      ancestors[j] = [];
-                  }
-
-                  var shouldSeeCount = ancestors[j].length;
-                  var seenCount = 0;
-                  for (var k = 0; k < shouldSeeCount; ++k) {
-                      if (visited[ancestors[j][k]]) {
-                          ++seenCount;
-                      }
-                  }
-
-                  if (seenCount === shouldSeeCount) {
-                      next = j;
-                      break;
-                  }
-              }
-          }
-
-          if (next !== null) {
-              visited[next] = true;
-              sorted.push(next);
-          }
-      }
-
-      if (sorted.length !== this._items.length) {
-          return new Error('Invalid dependencies');
-      }
-
-      var seqIndex = {};
-      for (var i = 0; i < this._items.length; ++i) {
-          var item = this._items[i];
-          seqIndex[item.seq] = item;
-      }
-
-      var sortedNodes = [];
-      this._items = sorted.map(function(value) {
-
-          var sortedItem = seqIndex[value];
-          sortedNodes.push(sortedItem.node);
-          return sortedItem;
-      });
-
-      self.nodes = sortedNodes;
-  };
-  return new internals.Topo();
-})()
+!function(){function n(n,e,i){var t=[],o={};return function s(d){o[d]=!0,t.push(d),n[d].forEach(function(n){if(o[n]){if(t.indexOf(n)>=0)throw t.push(n),new Error("Dependency Cycle Found: "+t.join(" -> "))}else s(n)}),t.pop(),e&&0!==n[d].length||-1!==i.indexOf(d)||i.push(d)}}var e=function(){this.nodes={},this.outgoingEdges={},this.incomingEdges={}};e.prototype={addNode:function(n,e){this.hasNode(n)||(2===arguments.length?this.nodes[n]=e:this.nodes[n]=n,this.outgoingEdges[n]=[],this.incomingEdges[n]=[])},removeNode:function(n){this.hasNode(n)&&(delete this.nodes[n],delete this.outgoingEdges[n],delete this.incomingEdges[n],[this.incomingEdges,this.outgoingEdges].forEach(function(e){Object.keys(e).forEach(function(i){var t=e[i].indexOf(n);t>=0&&e[i].splice(t,1)},this)}))},hasNode:function(n){return this.nodes.hasOwnProperty(n)},getNodeData:function(n){if(this.hasNode(n))return this.nodes[n];throw new Error("Plugin does not exist: "+n)},setNodeData:function(n,e){if(!this.hasNode(n))throw new Error("Plugin does not exist: "+n);this.nodes[n]=e},addDependency:function(n,e){if(!this.hasNode(n))throw new Error("Plugin does not exist: "+n);if(!this.hasNode(e))throw new Error("Plugin does not exist: "+e);return-1===this.outgoingEdges[n].indexOf(e)&&this.outgoingEdges[n].push(e),-1===this.incomingEdges[e].indexOf(n)&&this.incomingEdges[e].push(n),!0},removeDependency:function(n,e){var i;this.hasNode(n)&&(i=this.outgoingEdges[n].indexOf(e))>=0&&this.outgoingEdges[n].splice(i,1),this.hasNode(e)&&(i=this.incomingEdges[e].indexOf(n))>=0&&this.incomingEdges[e].splice(i,1)},dependenciesOf:function(e,i){if(this.hasNode(e)){var t=[];n(this.outgoingEdges,i,t)(e);var o=t.indexOf(e);return o>=0&&t.splice(o,1),t}throw new Error("Plugin does not exist: "+e)},dependantsOf:function(e,i){if(this.hasNode(e)){var t=[];n(this.incomingEdges,i,t)(e);var o=t.indexOf(e);return o>=0&&t.splice(o,1),t}throw new Error("Plugin does not exist: "+e)},overallOrder:function(e){var i=this,t=[],o=Object.keys(this.nodes);if(0===o.length)return t;var s=n(this.outgoingEdges,!1,[]);o.forEach(function(n){s(n)});var d=n(this.outgoingEdges,e,t);return o.filter(function(n){return 0===i.incomingEdges[n].length}).forEach(function(n){d(n)}),t}},window.DepGraph=e}();
+SIV_SCOPE._dependencyGraph = new DepGraph();
 
 // going old school with some mustache.js
 // https://github.com/janl/mustache.js
