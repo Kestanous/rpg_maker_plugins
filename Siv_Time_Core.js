@@ -448,14 +448,15 @@ SIV_SCOPE.TIME_SCOPE._checkWaiting = function(timestamp) {
 
 SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, newMapId) {
   var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
-  if (SIV_SCOPE.TIME_SCOPE._enabled) {
-    if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.TIME_SCOPE.disable()
-  } else {
-    notetagsRequest.match = "<SIV_TIME_ENABLE>"
-    if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.hasNotetag(notetagsRequest)) {
-      SIV_SCOPE.TIME_SCOPE.enable()
-    }
-  }
+  // TODO: fix
+  // if (SIV_SCOPE.TIME_SCOPE._enabled) {
+  //   if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.TIME_SCOPE.disable()
+  // } else {
+  //   notetagsRequest.match = "<SIV_TIME_ENABLE>"
+  //   if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.hasNotetag(notetagsRequest)) {
+  //     SIV_SCOPE.TIME_SCOPE.enable()
+  //   }
+  // }
 })
 
  ///////////////////
