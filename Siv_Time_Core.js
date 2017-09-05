@@ -447,16 +447,13 @@ SIV_SCOPE.TIME_SCOPE._checkWaiting = function(timestamp) {
  ////////////////////////////////////////////////////
 
 SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, newMapId) {
-  var notetagsRequest = { type: 'maps', id: mapId, match: "<SIV_TIME_DISABLE>" }
-  // TODO: fix
-  // if (SIV_SCOPE.TIME_SCOPE._enabled) {
-  //   if (SIV_SCOPE.hasNotetag(notetagsRequest)) SIV_SCOPE.TIME_SCOPE.disable()
-  // } else {
-  //   notetagsRequest.match = "<SIV_TIME_ENABLE>"
-  //   if (SIV_SCOPE.TIME_SCOPE.autoStart || SIV_SCOPE.hasNotetag(notetagsRequest)) {
-  //     SIV_SCOPE.TIME_SCOPE.enable()
-  //   }
-  // }
+  var notes = SIV_SCOPE.getNotetags({ type: 'maps', id: mapId, name: "SIV_TIME" });
+  if (!notes.length) return;
+  for (var i = 0; i < notes.length; i++) {
+    var setting = (notes[i].args[0] || '').toLowerCase();
+    if (setting === 'disable') SIV_SCOPE.TIME_SCOPE.disable()
+    else if (SIV_SCOPE.TIME_SCOPE.autoStart || setting === 'enable') SIV_SCOPE.TIME_SCOPE.enable()
+  }
 })
 
  ///////////////////

@@ -155,14 +155,14 @@ SIV_SCOPE.registerPluginCommand("DISABLE_TIME_Clock", function() {
 })
 
 SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, newMapId) {
-  var notetagsRequest =  SIV_SCOPE.getNotetags({ type: 'maps', id: mapId, tag: "SIV_TIME_CLOCK" })
-  // TODO: fix
-  // if (SIV_SCOPE.CLOCK_SCOPE.visible) {
-  //   if (.length) SIV_SCOPE.CLOCK_SCOPE.disable()
-  // } else {
-  //   notetagsRequest.match = "SIV_TIME_CLOCK:ENABLE>"
-  //   if (SIV_SCOPE.getNotetags(notetagsRequest).length) SIV_SCOPE.CLOCK_SCOPE.enable()
-  // }
+  var notes =  SIV_SCOPE.getNotetags({ type: 'maps', id: mapId, name: "SIV_TIME_CLOCK" });
+  if (!notes.length) return;
+  for (var i = 0; i < notes.length; i++) {
+    var setting = (notes[i].args[0] || '').toLowerCase();
+    console.log(setting, notes[i]);
+    if (setting === 'disable') SIV_SCOPE.CLOCK_SCOPE.disable()
+    else if (setting === 'enable') SIV_SCOPE.CLOCK_SCOPE.enable()
+  }
 })
 
 /////////////
