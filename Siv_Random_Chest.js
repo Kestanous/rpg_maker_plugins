@@ -1,4 +1,4 @@
-/*:
+/**:
   * @plugindesc (v1.0.0) [requires Siv_Plugin_Sanity] Generate random loot in events.
   * Can be used for chests or other loot drop events.
   *
@@ -24,7 +24,7 @@
   * ============================================================================
   * Documentation
   * ============================================================================
-  * By using plugin commands you can build randomly generate loot for chests.
+  * By using plugin commands you can build randomly generated loot for chests.
   * A standard example, in a common event:
   * - Plugin Command: Siv_Chest setup 1
   * - Plugin Command: Siv_Chest item 1
@@ -35,7 +35,7 @@
   * when you call "give" does the event actually give the player anything.
   *
   * Be careful and always call "give" when you are done as the loot list will
-  * exits until it is called or the game is closed. You can also build random
+  * exist until it is called or the game is closed. You can also build random
   * chests out of map events if you wish.
   *
   * ============================================================================
@@ -62,8 +62,24 @@
   * will give 3 to 9 potions.
   *
   * Plugin Command: Siv_Chest give
-  * - When you are done adding items to the loot list call give to run the chest
-  * event and actually give the loot to the player.
+  * - When you are done adding items to the loot list, call "give" to run the
+  * chest event and actually give the loot to the player.
+  *
+  * ============================================================================
+  * A note on dialog
+  * ============================================================================
+  *
+  * By default the plugin should pluralize and use the correct indefinite
+  * article (a vs an) for your loot dialog (assuming English). That said
+  * displaying dynamic text is tricky. If it's not working for you, if you want
+  * to use a diffrent display method (vs Show Text), or if you are not using
+  * English, you will need to write some code.
+  *
+  * In your own plugin replace the follwing function:
+  * SIV_SCOPE.CHEST_SCOPE.displayResults = function(items) {}
+  * items is an object with {timeName: itemCount}
+  *
+  * From here you will have to figure out what to do, luck!
   *
   * ============================================================================
   * Change Log

@@ -82,6 +82,16 @@
   * ============================================================================
   * Documentation
   * ============================================================================
+  * This is a simple drop in clock for Siv_Time_Core.js
+  * It's designed to be as customizable as possible while maintaining the look
+  * and feel of RPG Maker. You can position it anywhere on the map with
+  * percentage positioning. This will let your clock keep its position even if
+  * you change game resolutions.
+  *
+  * It lets you build 3 custom text rows to display the time however you want.
+  * Just add your time unit (from Siv_Time_Core) inside double curly braces.
+  * For example if Hours = 10 "It is {{Hours}} O' clock!" will print:
+  * - It is 10 O' Clock!
   *
   * ============================================================================
   * Change Log
