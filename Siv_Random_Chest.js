@@ -6,6 +6,20 @@
   *
   * @author Sivli Embir & Noxx Embir
   *
+  * @param ---Dialog Text---
+  *
+  * @param You found
+  * @parent ---Dialog Text---
+  * @desc The start of the dialog message.
+  * @type text
+  * @default You found
+  *
+  * @param Punctuation
+  * @parent ---Dialog Text---
+  * @desc The end of the dialog message.
+  * @type text
+  * @default !
+  *
   * @help
   * ============================================================================
   * Documentation
@@ -27,6 +41,7 @@
   * ============================================================================
   * Plugin Commands
   * ============================================================================
+  *
   * Plugin Command: Siv_Chest setup count unlimited
   * - this builds the chest settings.
   * -- count is the number of item sets you want to give to the player.
@@ -49,6 +64,7 @@
   * Plugin Command: Siv_Chest give
   * - When you are done adding items to the loot list call give to run the chest
   * event and actually give the loot to the player.
+  *
   * ============================================================================
   * Change Log
   * ============================================================================
@@ -87,8 +103,8 @@ SIV_SCOPE.CHEST_SCOPE = {
 }
 
 // TODO: replace static text with dynamic vars
-SIV_SCOPE.CHEST_SCOPE.youFound = 'You found'
-SIV_SCOPE.CHEST_SCOPE.punctuation = "!"
+SIV_SCOPE.CHEST_SCOPE.youFound = SIV_SCOPE.CHEST_SCOPE.parameters["You found"].trim()
+SIV_SCOPE.CHEST_SCOPE.punctuation = SIV_SCOPE.CHEST_SCOPE.parameters["Punctuation"].trim()
 
 // Siv_Tresure_List:
 SIV_SCOPE.registerPluginCommand('Siv_Chest', function(command, args) {
