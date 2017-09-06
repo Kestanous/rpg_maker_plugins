@@ -271,8 +271,6 @@ DataManager.isDatabaseLoaded = function() {
   SIV_SCOPE._buildNotetagDictionary('states', $dataStates)
   SIV_SCOPE._buildNotetagDictionary('weapons', $dataWeapons)
 
-  // TODO: the required plugins don't see to be showing in in the nodes....
-  // find and fix ASAP
   var pluginList = SIV_SCOPE._dependencyGraph.overallOrder();
   for (var i = 0; i < pluginList.length; i++) {
     SIV_SCOPE._plugins[pluginList[i]].plugin.call(window)
@@ -613,9 +611,6 @@ SIV_SCOPE.onSceneEvent(Scene_Map, 'create', function(mapId, oldMapId) {
    //floor mod. This lets us match the c++ webkit style of handling timestamps
    return Number((a - (Math.floor(a / b) * b)).toPrecision(8));
  };
-
-
-// TODO: REWRITE these code bits so they take less room and focus just on what we need.
 
 /**
  * A simple dependency graph
