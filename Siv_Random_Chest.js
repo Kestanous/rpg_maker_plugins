@@ -43,7 +43,7 @@ var defaults = {
 }
 
 SIV_SCOPE.CHEST_SCOPE = {
-  parameters: PluginManager.parameters('Siv_Time_Chest'),
+  parameters: PluginManager.parameters('Siv_Random_Chest'),
   chest: [],
   chestSettings: Object.assign({}, defaults)
 }

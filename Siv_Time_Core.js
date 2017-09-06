@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.3.0) [requires Siv_Plugin_Sanity v0.3.0] Tracks your frames like Seconds in a Epoch (UNIX) time format.
+  * @plugindesc (v1.3.0) [requires Siv_Plugin_Sanity] Tracks your frames like Seconds in a Epoch (UNIX) time format.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *

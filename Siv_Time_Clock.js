@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v1.0.0) [requires Siv_Time_Core v1.2.0 and up] In-game clock / time UI
+  * @plugindesc (v1.0.0) [requires Siv_Time_Core] In-game clock / time UI
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *

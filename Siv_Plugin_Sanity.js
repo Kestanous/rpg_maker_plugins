@@ -1,5 +1,5 @@
 /*:
-  * @plugindesc (v0.3.0) Makes building and using plugins easier. Comes with a dependency manager.
+  * @plugindesc (v0.4.0) Makes building and using plugins easier. Comes with a dependency manager.
   *
   * Released under MIT license, https://github.com/Sivli-Embir/rpg_maker_plugins/blob/master/LICENSE
   *
@@ -32,18 +32,47 @@
   *
   * SIV_SCOPE.definePlugin (object): use dependency manager.
   *
-  * SIV_SCOPE.hasNotetag(object): check if game object has matching notetags
+  * SIV_SCOPE.getNotetags(object): check if game object has matching notetags
   *
   * SIV_SCOPE.registerPluginCommand (name, function): will run the funciton on
   * plugin command call.
+  *
+  * ============================================================================
+  * Notetag format
+  * ============================================================================
+  * <ExampleTag />  results in:
+  * {name: "ExampleTag", args: []}
+  *
+  * <ExampleTag some arguments />  results in:
+  * {
+  *   name: "ExampleTag",
+  *   args: ['some', 'arguments']
+  * }
+  *
+  * <ExampleTag some arguments>
+  * child 1
+  * child 2
+  * <ExampleTag /> results in:
+  * {
+  *   name: "ExampleTag",
+  *   args: ['some', 'arguments'],
+  *   children: ['child 1', 'child 2']
+  * }
+  *
+  * Be aware that the following is also valid but not encouraged:
+  * <ExampleTag valid but>
+  * really not a good format.
+  * As it is harder to read where ExampleTag ended.
+  * />
   *
   * ===ON EVENTS===
   * SIV_SCOPE.onInit (function): DB, Plutins, and note tags are laoded.
   * SIV_SCOPE.onFrame (function): best to not use this... (if you must use scene
   * update instead)
-  * SIV_SCOPE.onSceneEvent: (sceneType, eventName, function):
-  *   sceneType: 'title', 'map', 'menu', 'item', ext...
-  *   eventName: 'create', 'start', 'update', 'terminate', (map: 'addObjects')
+  * SIV_SCOPE.onSceneEvent: (sceneObj, eventName, function):
+  *   sceneObj: (Scene_[name] The scene game object) example: Scene_Map
+  *   eventName: 'create', 'start', 'update', 'terminate',
+  *   (also for map: 'addObjects')
   *
   * ============================================================================
   * Change Log
@@ -162,9 +191,6 @@ SIV_SCOPE.onInit = function(func) {
    SIV_SCOPE._onQueue.variableChange[index].push(func)
  }
 
-// TODO: onNewGame
-// TODO: onLoadGame
-// TODO: onStartGame
 
 SIV_SCOPE.onSceneEvent = function(scene, event, func) {
   SIV_SCOPE.onEvent(scene.name, event, func)
@@ -173,10 +199,8 @@ SIV_SCOPE.onSceneEvent = function(scene, event, func) {
 
 
 /**
- * TODO: These comments are out of date
  * Find out if a given game object has a notetag. This takes a query and returns
- * a truthy or false answer. I say truthy because it returns the notetags in an
- * array format, but an array is the same as true if you want to use an if statement.
+ * an array of all matchs.
  *
  * The query shoud have:
  * the (type) of object you have - currently: "actors", "armors", 'classes',
@@ -186,7 +210,10 @@ SIV_SCOPE.onSceneEvent = function(scene, event, func) {
  *
  * @param  {Object} obj must contain a type {String} and an id {Number} and
  * a name {String}. mapEvents also requires a mapId {Number}
- * @return {Array}
+ * @return {Array} This array as objects:
+ * name {String} the name of the notetag
+ * args {Array} all the notetag top level arguments
+ * children {Array} this is ether undefined or an array of child data.
  */
 SIV_SCOPE.getNotetags = function(obj) {
   var notes;
@@ -212,7 +239,7 @@ SIV_SCOPE.getNotetags = function(obj) {
  * Warning: Last write wins case, the last plugin to use the same command name
  * will be the only one to use the command. Breaking change from core!
  *
- * TODO: consider building in a namespace backend option, or front end even...
+ * a: consider building in a namespace backend option, or front end even...
  * but how??? The user will only say the original name, how do we get intent?
  * Can we run all matchs? Should we? imo no but...
  *
