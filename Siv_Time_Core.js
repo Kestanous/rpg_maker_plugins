@@ -98,9 +98,9 @@
   * Note Tags
   * ============================================================================
   *
-  * <SIV_TIME_DISABLE> [Map]
+  * <SIV_TIME DISABLE /> [Map]
   * - Will disable the plugin on map setup (when it loads)
-  * <SIV_TIME_ENABLE> [Map]
+  * <SIV_TIME ENABLE /> [Map]
   * - Will enable the plugin on map setup (when it loads). This is redundant
   * with Autostart on Map on.
   *
